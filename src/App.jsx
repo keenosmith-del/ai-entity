@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ChevronUp,
   SquarePen,
+  Square,
 } from "lucide-react";
 
 import "./styles/globals.css";
@@ -48,11 +49,42 @@ function App() {
   const [response, setResponse] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
 
-  const isMobile = window.innerWidth <= 768;
-
   const fakeResponse =
     "Hello! I'm your AI assistant. This response is currently being streamed one character at a time so we can build the interface before connecting a real language model.";
 
+  const streamRef = useRef(null);
+  const thinkingTimeoutRef = useRef(null);
+
+  const [isOrbThinking, setIsOrbThinking] = useState(false);
+
+  const isMobile = window.innerWidth <= 768;
+
+  // stop streaming response
+  const stopStreaming = () => {
+
+    // Stop thinking phase
+    if (thinkingTimeoutRef.current) {
+
+      clearTimeout(thinkingTimeoutRef.current);
+      thinkingTimeoutRef.current = null;
+
+    }
+
+    // Stop streaming phase
+    if (streamRef.current) {
+
+      clearInterval(streamRef.current);
+      streamRef.current = null;
+
+    }
+
+    setIsThinking(false);
+    setIsStreaming(false);
+    setIsOrbThinking(false);
+
+  };
+
+  // handle submit onclick (arrow) send
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -63,6 +95,8 @@ function App() {
       setIsPaused(false);
 
       setShowResponse(true);
+
+      setIsOrbThinking(true);
 
       inputRef.current?.focus();
       return;
@@ -85,14 +119,18 @@ function App() {
 
     setResponse("");
 
-    setTimeout(() => {
+    thinkingTimeoutRef.current = setTimeout(() => {
+
+      thinkingTimeoutRef.current = null;
 
       setIsThinking(false);
       setIsStreaming(true);
 
+      setIsOrbThinking(false);
+
       let i = 0;
 
-      const interval = setInterval(() => {
+      streamRef.current = setInterval(() => {
 
         i++;
 
@@ -100,7 +138,9 @@ function App() {
 
         if (i >= fakeResponse.length) {
 
-          clearInterval(interval);
+          clearInterval(streamRef.current);
+          streamRef.current = null;
+
           setIsStreaming(false);
 
         }
@@ -401,7 +441,7 @@ function App() {
           <img
             src={orb}
             alt="AI Orb"
-            className="orb"
+            className={`orb ${isOrbThinking ? "thinking" : ""}`}
             draggable={false}
           />
 
@@ -486,12 +526,34 @@ function App() {
               </>
             )}
 
-            <button
-              type="submit"
-              className="sendButton"
-            >
-              <ArrowRight size={18} strokeWidth={1.5} />
-            </button>
+            {/* send prompt button / stop respond button */}
+            {isThinking || isStreaming ? (
+              <button
+                type="button"
+                className="sendButton"
+                onClick={stopStreaming}
+              >
+                <Square
+                  size={16}
+                  fill="currentColor"
+                  strokeWidth={1.5}
+                />
+              </button>
+
+            ) : (
+
+              <button
+                type="submit"
+                className="sendButton"
+              >
+                <ArrowRight
+                  size={18}
+                  strokeWidth={1.5}
+                />
+              </button>
+
+            )}
+
           </form>
         </section> {/* end hero */}
 
