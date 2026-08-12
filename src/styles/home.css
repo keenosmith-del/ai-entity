@@ -1049,18 +1049,25 @@
 .knowledgeList {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 6px;
 }
 
+
+/* knowledge document */
+
 .knowledgeItem {
-    min-height: 34px;
+    position: relative;
+
+    width: 100%;
 
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    flex-direction: column;
 
-    padding: 6px 10px;
+    gap: 6px;
+
+    min-width: 0;
+
+    padding: 10px;
 
     border-radius: 14px;
 
@@ -1071,10 +1078,558 @@
     font-size: .72rem;
 }
 
-.knowledgeItem span {
+
+/* document name */
+
+.knowledgeNameArea {
+    width: 100%;
+
+    display: flex;
+    align-items: center;
+
+    min-width: 0;
+
+    padding-right: 28px;
+}
+
+.knowledgeName {
+
+    width: 100%;
+
+    min-width: 0;
+
+    padding: 0;
+
+    border: none;
+
+    background: transparent;
+
+    color: rgba(0, 0, 0, .45);
+
+    font-family: inherit;
+    font-size: .72rem;
+    font-weight: 400;
+
+    text-align: left;
+
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+
+    cursor: text;
+
+}
+
+.knowledgeName:hover {
+
+    color: rgba(0, 0, 0, .65);
+
+}
+
+.knowledgeEditInput {
+
+    width: 100%;
+
+    min-width: 0;
+
+    height: 28px;
+
+    padding: 0 9px;
+
+    border: 1px solid rgba(0, 0, 0, .08);
+    border-radius: 999px;
+
+    background: rgba(255, 255, 255, .45);
+
+    color: rgba(0, 0, 0, .5);
+
+    font-family: inherit;
+    font-size: .72rem;
+
+    outline: none;
+
+}
+
+.knowledgeEditInput:focus {
+
+    border-color: rgba(0, 0, 0, .15);
+
+}
+
+
+/* document content */
+
+.knowledgeContentArea {
+
+    width: 100%;
+
+    min-width: 0;
+
+}
+
+.knowledgeContentPreview {
+
+    width: 100%;
+
+    padding: 0;
+
+    border: none;
+
+    background: transparent;
+
+    color: rgba(0, 0, 0, .28);
+
+    font-family: inherit;
+    font-size: .68rem;
+
+    line-height: 1.45;
+
+    text-align: left;
+
+    cursor: text;
+
+    display: -webkit-box;
+
+    -webkit-line-clamp: 3;
+
+    -webkit-box-orient: vertical;
+
+    overflow: hidden;
+
+    transition: color .2s ease;
+
+}
+
+.knowledgeContentPreview:hover {
+
+    color: rgba(0, 0, 0, .45);
+
+}
+
+
+/* content editor */
+
+.knowledgeEditor {
+
+    width: 100%;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 8px;
+
+}
+
+.knowledgeContentInput {
+
+    width: 100%;
+
+    min-height: 90px;
+
+    padding: 9px 10px;
+
+    border: 1px solid rgba(0, 0, 0, .08);
+    border-radius: 12px;
+
+    background: rgba(255, 255, 255, .45);
+
+    color: rgba(0, 0, 0, .5);
+
+    font-family: inherit;
+    font-size: .68rem;
+
+    line-height: 1.45;
+
+    outline: none;
+
+    resize: vertical;
+
+}
+
+.knowledgeContentInput:focus {
+
+    border-color: rgba(0, 0, 0, .15);
+
+}
+
+
+/* content editor actions */
+
+.knowledgeEditorActions {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: flex-end;
+
+    gap: 6px;
+
+}
+
+.knowledgeCancelButton,
+.knowledgeSaveButton {
+
+    height: 28px;
+
+    padding: 0 11px;
+
+    border: none;
+
+    border-radius: 999px;
+
+    font-family: inherit;
+    font-size: .68rem;
+
+    cursor: pointer;
+
+    transition:
+        background .2s ease,
+        color .2s ease,
+        transform .2s ease;
+
+}
+
+.knowledgeCancelButton {
+
+    background: rgba(0, 0, 0, .04);
+
+    color: rgba(0, 0, 0, .4);
+
+}
+
+.knowledgeCancelButton:hover {
+
+    background: rgba(0, 0, 0, .07);
+
+    color: rgba(0, 0, 0, .6);
+
+    transform: translateY(-1px);
+
+}
+
+.knowledgeSaveButton {
+
+    background: rgba(0, 0, 0, .08);
+
+    color: rgba(0, 0, 0, .55);
+
+}
+
+.knowledgeSaveButton:hover {
+
+    background: rgba(0, 0, 0, .12);
+
+    color: rgba(0, 0, 0, .7);
+
+    transform: translateY(-1px);
+
+}
+
+
+/* delete */
+
+.knowledgeItem>.memoryRemove {
+
+    position: absolute;
+
+    top: 7px;
+    right: 7px;
+
+}
+
+/* workflow */
+
+.workflowContent {
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 12px;
+
+}
+
+.workflowDescription {
+
+    color: rgba(0, 0, 0, .3);
+
+    font-size: .7rem;
+    line-height: 1.45;
+
+}
+
+.workflowSteps {
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 0;
+
+}
+
+.workflowStep {
+
+    display: flex;
+    align-items: center;
+
+    gap: 10px;
+
+    min-height: 42px;
+
+    padding: 7px 9px;
+
+    border-radius: 14px;
+
+    background: rgba(255, 255, 255, .3);
+
+}
+
+.workflowStepNumber {
+
+    flex-shrink: 0;
+
+    width: 24px;
+    height: 24px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: rgba(0, 0, 0, .05);
+
+    color: rgba(0, 0, 0, .3);
+
+    font-size: .55rem;
+
+}
+
+.workflowStepContent {
+
+    min-width: 0;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 2px;
+
+}
+
+.workflowStepTitle {
+
+    color: rgba(0, 0, 0, .5);
+
+    font-size: .7rem;
+
+}
+
+.workflowStepDescription {
+
+    color: rgba(0, 0, 0, .25);
+
+    font-size: .6rem;
+
+    line-height: 1.35;
+
+}
+
+.workflowConnector {
+
+    width: 1px;
+    height: 8px;
+
+    margin-left: 21px;
+
+    background: rgba(0, 0, 0, .08);
+
+}
+
+.workflowStep.active {
+
+    background: rgba(255, 255, 255, .5);
+
+}
+
+.workflowStep.active .workflowStepNumber {
+
+    background: rgba(0, 0, 0, .08);
+
+    color: rgba(0, 0, 0, .55);
+
+}
+
+.workflowStep.active .workflowStepTitle {
+
+    color: rgba(0, 0, 0, .65);
+
+}
+
+.workflowStep.active .workflowStepDescription {
+
+    color: rgba(0, 0, 0, .35);
+
+}
+
+/* model */
+
+.modelContent {
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 14px;
+
+}
+
+.modelField {
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 6px;
+
+}
+
+.modelFieldHeader {
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+}
+
+.modelValue {
+
+    color: rgba(0, 0, 0, .35);
+
+    font-size: .65rem;
+
+}
+
+.modelContent select {
+
+    width: 100%;
+
+    height: 34px;
+
+    padding: 0 10px;
+
+    border: 1px solid rgba(0, 0, 0, .06);
+    border-radius: 12px;
+
+    background: rgba(255, 255, 255, .35);
+
+    color: rgba(0, 0, 0, .5);
+
+    font-family: inherit;
+    font-size: .72rem;
+
+    outline: none;
+
+}
+
+.modelContent select:focus {
+
+    border-color: rgba(0, 0, 0, .12);
+
+}
+
+.modelContent input[type="range"] {
+
+    width: 100%;
+
+    height: 3px;
+
+    margin: 4px 0;
+
+    appearance: none;
+    -webkit-appearance: none;
+
+    border-radius: 999px;
+
+    background: rgba(0, 0, 0, .08);
+
+    outline: none;
+
+}
+
+.modelContent input[type="range"]::-webkit-slider-thumb {
+
+    appearance: none;
+    -webkit-appearance: none;
+
+    width: 14px;
+    height: 14px;
+
+    border-radius: 50%;
+
+    border: none;
+
+    background: rgba(0, 0, 0, .35);
+
+    cursor: pointer;
+
+}
+
+.modelContent input[type="range"]::-moz-range-thumb {
+
+    width: 14px;
+    height: 14px;
+
+    border-radius: 50%;
+
+    border: none;
+
+    background: rgba(0, 0, 0, .35);
+
+    cursor: pointer;
+
+}
+
+.modelRangeLabels {
+
+    display: flex;
+    justify-content: space-between;
+
+    color: rgba(0, 0, 0, .22);
+
+    font-size: .58rem;
+
+}
+
+.modelInfo {
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 9px 10px;
+
+    border-radius: 12px;
+
+    background: rgba(255, 255, 255, .3);
+
+}
+
+.modelInfoLabel {
+
+    color: rgba(0, 0, 0, .28);
+
+    font-size: .62rem;
+
+    text-transform: uppercase;
+
+    letter-spacing: .04em;
+
+}
+
+.modelInfoValue {
+
+    color: rgba(0, 0, 0, .4);
+
+    font-size: .65rem;
+
 }
 
 /* conversation history */
@@ -1087,6 +1642,34 @@
 
     gap: 6px;
 
+    max-height: 240px;
+
+    overflow-y: auto;
+
+    padding-right: 4px;
+
+}
+
+/* conversation history scrollbar */
+.conversationHistory::-webkit-scrollbar {
+    width: 4px;
+}
+
+.conversationHistory::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.conversationHistory::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 999px;
+}
+
+.conversationHistory:hover::-webkit-scrollbar-thumb {
+    background: rgba(131, 129, 129, 0.25);
+}
+
+.conversationHistory::-webkit-scrollbar-thumb:hover {
+    background: rgba(131, 129, 129, 0.4);
 }
 
 .historyTitle {
@@ -1160,6 +1743,63 @@
     background: rgba(255, 255, 255, .55);
 
     color: rgba(0, 0, 0, .65);
+
+}
+
+.historyTitleButton {
+
+    width: 100%;
+    height: 40px;
+
+    display: flex;
+    align-items: center;
+
+    padding: 0 16px;
+
+    border: none;
+    border-radius: 30px;
+
+    background: transparent;
+
+    color: inherit;
+
+    font-size: inherit;
+    font-family: inherit;
+
+    text-align: left;
+
+    cursor: pointer;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+}
+
+.historyEditInput {
+
+    width: 100%;
+    height: 32px;
+
+    padding: 0 10px;
+
+    border: 1px solid rgba(0, 0, 0, .08);
+    border-radius: 999px;
+
+    background: rgba(255, 255, 255, .45);
+
+    color: rgba(0, 0, 0, .55);
+
+    font-family: inherit;
+    font-size: .8rem;
+
+    outline: none;
+
+}
+
+.historyEditInput:focus {
+
+    border-color: rgba(0, 0, 0, .15);
 
 }
 

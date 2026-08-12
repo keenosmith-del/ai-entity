@@ -82,6 +82,17 @@ function App() {
   const [editingMemoryIndex, setEditingMemoryIndex] = useState(null);
   const [editingMemoryValue, setEditingMemoryValue] = useState("");
 
+  // edit conversation titles
+  const [editingConversationId, setEditingConversationId] = useState(null);
+  const [editingConversationTitle, setEditingConversationTitle] = useState("");
+
+  // edit knowledge docs
+  const [editingKnowledgeId, setEditingKnowledgeId] = useState(null);
+  const [editingKnowledgeName, setEditingKnowledgeName] = useState("");
+
+  const [editingKnowledgeContentId, setEditingKnowledgeContentId] = useState(null);
+  const [editingKnowledgeContent, setEditingKnowledgeContent] = useState("");
+
   // context state
   const defaultContext = {
     includeConversation: true,
@@ -106,6 +117,17 @@ function App() {
   );
 
   const [knowledgeInput, setKnowledgeInput] = useState("");
+
+  // model
+  const defaultModelSettings = {
+    model: "gpt-5.6",
+    temperature: 0.7,
+    maxTokens: 1024,
+  };
+
+  const [modelSettings, setModelSettings] = useState(
+    defaultModelSettings
+  );
 
   const [showResponse, setShowResponse] = useState(false);
 
@@ -236,7 +258,10 @@ function App() {
   };
 
   // ai request payload
-  const buildAIRequest = (userPrompt) => {
+  const buildAIRequest = (
+    userPrompt,
+    retrievedKnowledge = []
+  ) => {
 
     const messages = [];
 
@@ -265,12 +290,20 @@ function App() {
     if (
       context.includeKnowledge &&
       knowledge.enabled &&
-      knowledge.documents.length > 0
+      retrievedKnowledge.length > 0
     ) {
+
+      const knowledgeContent =
+        retrievedKnowledge
+          .map(
+            (document) =>
+              `Document: ${document.name}\n${document.content || ""}`
+          )
+          .join("\n\n");
 
       messages.push({
         role: "system",
-        content: `Relevant knowledge:\n${buildKnowledgeInstructions()}`,
+        content: `Relevant knowledge:\n${knowledgeContent}`,
       });
 
     }
@@ -337,6 +370,46 @@ function App() {
 
   };
 
+  // knowledge retrieval simulation
+  const retrieveKnowledge = (userPrompt) => {
+
+    if (
+      !knowledge.enabled ||
+      !context.includeKnowledge ||
+      knowledge.documents.length === 0
+    ) {
+      return [];
+    }
+
+    const promptWords = userPrompt
+      .toLowerCase()
+      .split(/\W+/)
+      .filter((word) => word.length > 2);
+
+    const results = knowledge.documents
+      .map((document) => {
+
+        const searchableText = `
+        ${document.name}
+        ${document.content || ""}
+      `.toLowerCase();
+
+        const matches = promptWords.filter((word) =>
+          searchableText.includes(word)
+        );
+
+        return {
+          ...document,
+          score: matches.length,
+        };
+
+      })
+      .filter((document) => document.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    return results;
+  };
+
   // memory extraction
   const extractMemory = (userPrompt) => {
 
@@ -346,6 +419,7 @@ function App() {
       return null;
     }
 
+    // add pattern girl/boy friend's name is
     const patterns = [
       {
         regex: /^my name is (.+)$/i,
@@ -411,6 +485,88 @@ function App() {
 
   };
 
+  const saveConversationTitle = (conversationId) => {
+
+    const title = editingConversationTitle.trim();
+
+    if (!title) return;
+
+    setConversationHistory((currentHistory) =>
+      currentHistory.map((item) =>
+        item.id === conversationId
+          ? {
+            ...item,
+            title,
+            updatedAt: Date.now(),
+          }
+          : item
+      )
+    );
+
+    setConversation((current) =>
+      current.id === conversationId
+        ? {
+          ...current,
+          title,
+          updatedAt: Date.now(),
+        }
+        : current
+    );
+
+    setEditingConversationId(null);
+    setEditingConversationTitle("");
+
+  };
+
+  // save knowledge edit helper
+  const saveKnowledgeName = (documentId) => {
+
+    const name = editingKnowledgeName.trim();
+
+    if (!name) return;
+
+    setKnowledge((current) => ({
+      ...current,
+
+      documents: current.documents.map((document) =>
+        document.id === documentId
+          ? {
+            ...document,
+            name,
+          }
+          : document
+      ),
+    }));
+
+    setEditingKnowledgeId(null);
+    setEditingKnowledgeName("");
+
+    showToast("Document renamed");
+
+  };
+
+  const saveKnowledgeContent = (documentId) => {
+
+    setKnowledge((current) => ({
+      ...current,
+
+      documents: current.documents.map((document) =>
+        document.id === documentId
+          ? {
+            ...document,
+            content: editingKnowledgeContent,
+          }
+          : document
+      ),
+    }));
+
+    setEditingKnowledgeContentId(null);
+    setEditingKnowledgeContent("");
+
+    showToast("Document saved");
+
+  };
+
   // set and reset personality 
   const savePersonality = () => {
 
@@ -429,6 +585,7 @@ function App() {
     showToast("Changes saved");
 
   };
+
   const resetPersonality = () => {
 
     setPersonalityDraft({
@@ -513,7 +670,14 @@ function App() {
 
     const memoryCandidate = extractMemory(userPrompt);
 
-    const aiRequest = buildAIRequest(userPrompt);
+    const retrievedKnowledge = retrieveKnowledge(userPrompt);
+
+    console.log("Retrieved knowledge:", retrievedKnowledge);
+
+    const aiRequest = buildAIRequest(
+      userPrompt,
+      retrievedKnowledge
+    );
 
     console.log("AI request:", aiRequest);
 
@@ -1318,15 +1482,115 @@ function App() {
 
                     knowledge.documents.map((document) => (
 
-                      <div
-                        key={document.id}
-                        className="knowledgeItem"
-                      >
+                      <div className="knowledgeItem">
 
-                        <span>
-                          {document.name}
-                        </span>
+                        {/* NAME */}
+                        <div className="knowledgeNameArea">
 
+                          {editingKnowledgeId === document.id ? (
+
+                            <input
+                              className="knowledgeEditInput"
+                              value={editingKnowledgeName}
+                              onChange={(e) =>
+                                setEditingKnowledgeName(e.target.value)
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  saveKnowledgeName(document.id);
+                                }
+
+                                if (e.key === "Escape") {
+                                  setEditingKnowledgeId(null);
+                                  setEditingKnowledgeName("");
+                                }
+                              }}
+                              autoFocus
+                            />
+
+                          ) : (
+
+                            <button
+                              type="button"
+                              className="knowledgeName"
+                              onClick={() => {
+                                setEditingKnowledgeId(document.id);
+                                setEditingKnowledgeName(document.name);
+                              }}
+                            >
+                              {document.name}
+                            </button>
+
+                          )}
+
+                        </div>
+
+
+                        {/* CONTENT */}
+                        <div className="knowledgeContentArea">
+
+                          {editingKnowledgeContentId === document.id ? (
+
+                            <div className="knowledgeEditor">
+
+                              <textarea
+                                className="knowledgeContentInput"
+                                value={editingKnowledgeContent}
+                                onChange={(e) =>
+                                  setEditingKnowledgeContent(e.target.value)
+                                }
+                                autoFocus
+                              />
+
+                              <div className="knowledgeEditorActions">
+
+                                <button
+                                  type="button"
+                                  className="knowledgeCancelButton"
+                                  onClick={() => {
+                                    setEditingKnowledgeContentId(null);
+                                    setEditingKnowledgeContent("");
+                                  }}
+                                >
+                                  Cancel
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className="knowledgeSaveButton"
+                                  onClick={() => {
+                                    saveKnowledgeContent(document.id);
+                                  }}
+                                >
+                                  Save
+                                </button>
+
+                              </div>
+
+                            </div>
+
+                          ) : (
+
+                            <button
+                              type="button"
+                              className="knowledgeContentPreview"
+                              onClick={() => {
+                                setEditingKnowledgeContentId(document.id);
+                                setEditingKnowledgeContent(
+                                  document.content || ""
+                                );
+                              }}
+                            >
+                              {document.content ||
+                                "No content yet. Click to add content."}
+                            </button>
+
+                          )}
+
+                        </div>
+
+
+                        {/* DELETE */}
                         <button
                           type="button"
                           className="memoryRemove"
@@ -1334,11 +1598,9 @@ function App() {
 
                             setKnowledge((current) => ({
                               ...current,
-                              documents:
-                                current.documents.filter(
-                                  (item) =>
-                                    item.id !== document.id
-                                ),
+                              documents: current.documents.filter(
+                                (item) => item.id !== document.id
+                              ),
                             }));
 
                           }}
@@ -1397,9 +1659,199 @@ function App() {
 
             {openSection === "workflow" && (
 
-              <div className="panelContent">
+              <div className="panelContent workflowContent">
 
-                Workflow content
+                <div className="workflowDescription">
+                  Shows how a request moves through the assistant.
+                </div>
+
+                <div className="workflowSteps">
+
+                  <div className="workflowStep">
+
+                    <span className="workflowStepNumber">
+                      01
+                    </span>
+
+                    <div className="workflowStepContent">
+
+                      <span className="workflowStepTitle">
+                        Prompt
+                      </span>
+
+                      <span className="workflowStepDescription">
+                        Current message
+                      </span>
+
+                    </div>
+
+                  </div>
+
+
+                  <div className="workflowConnector" />
+
+
+                  <div
+                    className={`workflowStep ${context.includeConversation ||
+                      context.includePersonality ||
+                      context.includeMemory ||
+                      context.includeKnowledge
+                      ? "active"
+                      : ""
+                      }`}
+                  >
+
+                    <span className="workflowStepNumber">
+                      02
+                    </span>
+
+                    <div className="workflowStepContent">
+
+                      <span className="workflowStepTitle">
+                        Context
+                      </span>
+
+                      <span className="workflowStepDescription">
+
+                        {[
+                          context.includeConversation && "Conversation",
+                          context.includePersonality && "Personality",
+                          context.includeMemory && "Memory",
+                          context.includeKnowledge && "Knowledge",
+                        ]
+                          .filter(Boolean)
+                          .join(", ") || "No additional context"}
+
+                      </span>
+
+                    </div>
+
+                  </div>
+
+
+                  <div className="workflowConnector" />
+
+
+                  <div
+                    className={`workflowStep ${context.includeKnowledge && knowledge.enabled
+                      ? "active"
+                      : ""
+                      }`}
+                  >
+
+                    <span className="workflowStepNumber">
+                      03
+                    </span>
+
+                    <div className="workflowStepContent">
+
+                      <span className="workflowStepTitle">
+                        Retrieval
+                      </span>
+
+                      <span className="workflowStepDescription">
+
+                        {context.includeKnowledge && knowledge.enabled
+                          ? `${knowledge.documents.length} document${knowledge.documents.length === 1
+                            ? ""
+                            : "s"
+                          } available`
+                          : "Knowledge disabled"}
+
+                      </span>
+
+                    </div>
+
+                  </div>
+
+
+                  <div className="workflowConnector" />
+
+
+                  <div className="workflowStep">
+
+                    <span className="workflowStepNumber">
+                      04
+                    </span>
+
+                    <div className="workflowStepContent">
+
+                      <span className="workflowStepTitle">
+                        AI Request
+                      </span>
+
+                      <span className="workflowStepDescription">
+                        Assemble selected context
+                      </span>
+
+                    </div>
+
+                  </div>
+
+
+                  <div className="workflowConnector" />
+
+
+                  <div
+                    className={`workflowStep ${isThinking || isStreaming
+                      ? "active"
+                      : ""
+                      }`}
+                  >
+
+                    <span className="workflowStepNumber">
+                      05
+                    </span>
+
+                    <div className="workflowStepContent">
+
+                      <span className="workflowStepTitle">
+                        Model
+                      </span>
+
+                      <span className="workflowStepDescription">
+
+                        {isThinking
+                          ? "Thinking..."
+                          : isStreaming
+                            ? "Streaming..."
+                            : "Ready"}
+
+                      </span>
+
+                    </div>
+
+                  </div>
+
+
+                  <div className="workflowConnector" />
+
+
+                  <div className="workflowStep">
+
+                    <span className="workflowStepNumber">
+                      06
+                    </span>
+
+                    <div className="workflowStepContent">
+
+                      <span className="workflowStepTitle">
+                        Response
+                      </span>
+
+                      <span className="workflowStepDescription">
+
+                        {isStreaming
+                          ? "Receiving response"
+                          : "Ready"}
+
+                      </span>
+
+                    </div>
+
+                  </div>
+
+                </div>
 
               </div>
 
@@ -1780,13 +2232,124 @@ function App() {
 
             {openSection === "model" && (
 
-              <div className="panelContent">
+              <div className="panelContent modelContent">
 
-                Model content
+                <div className="modelField">
+
+                  <span className="personalityLabel">
+                    Model
+                  </span>
+
+                  <select
+                    value={modelSettings.model}
+                    onChange={(e) => {
+
+                      setModelSettings((current) => ({
+                        ...current,
+                        model: e.target.value,
+                      }));
+
+                    }}
+                  >
+                    <option value="gpt-5.6">GPT-5.6</option>
+                    <option value="gpt-5-mini">GPT-5 mini</option>
+                    <option value="gpt-4.1">GPT-4.1</option>
+                  </select>
+
+                </div>
+
+
+                <div className="modelField">
+
+                  <div className="modelFieldHeader">
+
+                    <span className="personalityLabel">
+                      Temperature
+                    </span>
+
+                    <span className="modelValue">
+                      {modelSettings.temperature}
+                    </span>
+
+                  </div>
+
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={modelSettings.temperature}
+                    onChange={(e) => {
+
+                      setModelSettings((current) => ({
+                        ...current,
+                        temperature: Number(e.target.value),
+                      }));
+
+                    }}
+                  />
+
+                  <div className="modelRangeLabels">
+
+                    <span>Focused</span>
+                    <span>Creative</span>
+
+                  </div>
+
+                </div>
+
+
+                <div className="modelField">
+
+                  <div className="modelFieldHeader">
+
+                    <span className="personalityLabel">
+                      Maximum response
+                    </span>
+
+                    <span className="modelValue">
+                      {modelSettings.maxTokens}
+                    </span>
+
+                  </div>
+
+                  <select
+                    value={modelSettings.maxTokens}
+                    onChange={(e) => {
+
+                      setModelSettings((current) => ({
+                        ...current,
+                        maxTokens: Number(e.target.value),
+                      }));
+
+                    }}
+                  >
+                    <option value={256}>256 tokens</option>
+                    <option value={512}>512 tokens</option>
+                    <option value={1024}>1,024 tokens</option>
+                    <option value={2048}>2,048 tokens</option>
+                    <option value={4096}>4,096 tokens</option>
+                  </select>
+
+                </div>
+
+
+                <div className="modelInfo">
+
+                  <span className="modelInfoLabel">
+                    Status
+                  </span>
+
+                  <span className="modelInfoValue">
+                    Frontend simulation
+                  </span>
+
+                </div>
 
               </div>
 
             )}
+
           </div>
 
           {/* conversations panel group */}
@@ -1806,16 +2369,55 @@ function App() {
 
               conversationHistory.map((item) => (
 
-                <button
+                <div
                   key={item.id}
-                  className={`historyItem ${item.id === conversation.id ? "active" : ""
-                    }`}
-                  onClick={() => {
-                    switchConversation(item);
-                  }}
+                  className={`historyItem ${item.id === conversation.id ? "active" : ""}`}
                 >
-                  {item.title}
-                </button>
+
+                  {editingConversationId === item.id ? (
+
+                    <input
+                      className="historyEditInput"
+                      value={editingConversationTitle}
+                      onChange={(e) =>
+                        setEditingConversationTitle(e.target.value)
+                      }
+                      onKeyDown={(e) => {
+
+                        if (e.key === "Enter") {
+                          saveConversationTitle(item.id);
+                        }
+
+                        if (e.key === "Escape") {
+                          setEditingConversationId(null);
+                          setEditingConversationTitle("");
+                        }
+
+                      }}
+                      autoFocus
+                    />
+
+                  ) : (
+
+                    <button
+                      type="button"
+                      className="historyTitleButton"
+                      onClick={() => {
+                        switchConversation(item);
+                      }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+
+                        setEditingConversationId(item.id);
+                        setEditingConversationTitle(item.title);
+                      }}
+                    >
+                      {item.title}
+                    </button>
+
+                  )}
+
+                </div>
 
               ))
 
