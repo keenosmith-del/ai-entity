@@ -374,6 +374,7 @@
 }
 
 /* glass panel */
+/* glass panel */
 .sidePanel {
     position: fixed;
 
@@ -397,6 +398,8 @@
     transition: transform .35s ease;
 
     z-index: 500;
+
+    overflow: hidden;
 }
 
 .sidePanel.open {
@@ -404,11 +407,39 @@
 }
 
 .panelMenu {
+    height: 100%;
+
     display: flex;
     flex-direction: column;
     gap: 6px;
 
     margin-top: 70px;
+
+    overflow-y: auto;
+
+    padding-right: 4px;
+    padding-bottom: 80px;
+}
+
+.panelMenu::-webkit-scrollbar {
+    width: 5px;
+}
+
+.panelMenu::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.panelMenu::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 999px;
+}
+
+.panelMenu:hover::-webkit-scrollbar-thumb {
+    background: rgba(131, 129, 129, 0.25);
+}
+
+.panelMenu::-webkit-scrollbar-thumb:hover {
+    background: rgba(131, 129, 129, 0.4);
 }
 
 .panelItem {
@@ -485,6 +516,653 @@
 
 }
 
+/* personality */
+.personalityContent {
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 14px;
+
+    margin-left: 48px;
+    margin-right: 16px;
+
+}
+
+.personalityField {
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 5px;
+
+}
+
+.personalityLabel {
+
+    color: rgba(0, 0, 0, .3);
+
+    font-size: .65rem;
+
+    text-transform: uppercase;
+
+    letter-spacing: .04em;
+
+}
+
+.personalityField select,
+.personalityField textarea {
+
+    width: 100%;
+
+    border: 1px solid rgba(0, 0, 0, .06);
+    border-radius: 12px;
+
+    background: rgba(255, 255, 255, .35);
+
+    color: rgba(0, 0, 0, .5);
+
+    font-family: inherit;
+    font-size: .72rem;
+
+    outline: none;
+
+}
+
+.personalityField select {
+
+    height: 34px;
+
+    padding: 0 10px;
+
+}
+
+.personalityField textarea {
+
+    min-height: 70px;
+
+    padding: 9px 10px;
+
+    resize: vertical;
+
+}
+
+.personalityField select:focus,
+.personalityField textarea:focus {
+
+    border-color: rgba(0, 0, 0, .12);
+
+}
+
+.personalityActions {
+
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+
+    gap: 8px;
+
+    margin-top: 4px;
+
+}
+
+.personalityActions button {
+
+    height: 32px;
+
+    padding: 0 14px;
+
+    border: none;
+    border-radius: 999px;
+
+    font-family: inherit;
+    font-size: .7rem;
+
+    cursor: pointer;
+
+    transition:
+        background .2s ease,
+        color .2s ease,
+        transform .2s ease;
+
+}
+
+.personalityReset {
+
+    background: rgba(0, 0, 0, .04);
+
+    color: rgba(0, 0, 0, .4);
+
+}
+
+.personalityReset:hover {
+
+    background: rgba(0, 0, 0, .07);
+
+    color: rgba(0, 0, 0, .6);
+
+    transform: translateY(-1px);
+
+}
+
+.personalitySave {
+
+    background: rgba(0, 0, 0, .08);
+
+    color: rgba(0, 0, 0, .55);
+
+}
+
+.personalitySave:hover {
+
+    background: rgba(0, 0, 0, .12);
+
+    color: rgba(0, 0, 0, .7);
+
+    transform: translateY(-1px);
+
+}
+
+/* memory */
+.memoryContent {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.memoryToggleRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.memoryToggle {
+    position: relative;
+
+    width: 30px;
+    height: 18px;
+
+    padding: 0;
+
+    border: none;
+    border-radius: 999px;
+
+    background: rgba(0, 0, 0, .12);
+
+    cursor: pointer;
+
+    transition: background .2s ease;
+}
+
+.memoryToggle span {
+    position: absolute;
+
+    top: 3px;
+    left: 3px;
+
+    width: 12px;
+    height: 12px;
+
+    border-radius: 50%;
+
+    background: rgba(255, 255, 255, .9);
+
+    transition: transform .2s ease;
+}
+
+.memoryToggle.active {
+    background: rgba(0, 0, 0, .35);
+}
+
+.memoryToggle.active span {
+    transform: translateX(12px);
+}
+
+.memoryDescription {
+    color: rgba(0, 0, 0, .3);
+
+    font-size: .7rem;
+    line-height: 1.45;
+}
+
+.memoryList {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+
+    margin-top: 2px;
+}
+
+.memoryEmpty {
+    color: rgba(0, 0, 0, .25);
+
+    font-size: .7rem;
+}
+
+.memoryItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+
+    min-height: 32px;
+
+    padding: 6px 8px 6px 10px;
+
+    border-radius: 14px;
+
+    background: rgba(255, 255, 255, .28);
+
+    color: rgba(0, 0, 0, .45);
+
+    font-size: .7rem;
+    line-height: 1.4;
+}
+
+.memoryItem span {
+    min-width: 0;
+}
+
+.memoryRemove {
+    flex-shrink: 0;
+
+    width: 22px;
+    height: 22px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0;
+
+    border: none;
+    border-radius: 50%;
+
+    background: transparent;
+
+    color: rgba(0, 0, 0, .3);
+
+    cursor: pointer;
+
+    transition:
+        background .2s ease,
+        color .2s ease;
+}
+
+.memoryRemove:hover {
+    background: rgba(0, 0, 0, .06);
+
+    color: rgba(0, 0, 0, .6);
+}
+
+.memoryAdd {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.memoryAdd input {
+    min-width: 0;
+    flex: 1;
+
+    height: 32px;
+
+    padding: 0 10px;
+
+    border: 1px solid rgba(0, 0, 0, .06);
+    border-radius: 999px;
+
+    outline: none;
+
+    background: rgba(255, 255, 255, .35);
+
+    color: rgba(0, 0, 0, .5);
+
+    font-family: inherit;
+    font-size: .7rem;
+
+    transition:
+        border-color .2s ease,
+        background .2s ease;
+}
+
+.memoryAdd input::placeholder {
+    color: rgba(0, 0, 0, .25);
+}
+
+.memoryAdd input:focus {
+    border-color: rgba(0, 0, 0, .12);
+
+    background: rgba(255, 255, 255, .5);
+}
+
+.memoryAddButton {
+    height: 32px;
+
+    padding: 0 12px;
+
+    border: none;
+    border-radius: 999px;
+
+    background: rgba(0, 0, 0, .06);
+
+    color: rgba(0, 0, 0, .45);
+
+    font-family: inherit;
+    font-size: .7rem;
+
+    cursor: pointer;
+
+    transition:
+        background .2s ease,
+        color .2s ease;
+}
+
+.memoryAddButton:hover {
+    background: rgba(0, 0, 0, .1);
+
+    color: rgba(0, 0, 0, .65);
+}
+
+.memoryText {
+    flex: 1;
+
+    min-width: 0;
+
+    padding: 0;
+
+    border: none;
+
+    background: transparent;
+
+    color: rgba(0, 0, 0, .45);
+
+    font-family: inherit;
+    font-size: .7rem;
+
+    line-height: 1.4;
+
+    text-align: left;
+
+    cursor: text;
+}
+
+.memoryEditInput {
+    flex: 1;
+
+    min-width: 0;
+
+    padding: 0;
+
+    border: none;
+
+    outline: none;
+
+    background: transparent;
+
+    color: rgba(0, 0, 0, .5);
+
+    font-family: inherit;
+    font-size: .7rem;
+}
+
+/* context */
+.contextContent {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.contextField {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.contextToggleRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.contextContent select {
+    width: 100%;
+    height: 34px;
+
+    padding: 0 12px;
+
+    border: 1px solid rgba(0, 0, 0, .08);
+    border-radius: 999px;
+
+    background: rgba(255, 255, 255, .45);
+    color: rgba(0, 0, 0, .5);
+
+    font-family: inherit;
+    font-size: .75rem;
+
+    outline: none;
+}
+
+.contextContent select:focus {
+    border-color: rgba(0, 0, 0, .15);
+}
+
+.contextSummary {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    margin-top: 4px;
+}
+
+.contextSummaryList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.contextSummaryList span {
+    padding: 5px 9px;
+
+    border-radius: 999px;
+
+    background: rgba(255, 255, 255, .45);
+
+    color: rgba(0, 0, 0, .4);
+
+    font-size: .68rem;
+}
+
+.contextStats {
+    display: flex;
+    gap: 6px;
+}
+
+.contextStat {
+    flex: 1;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    padding: 8px 4px;
+
+    border-radius: 14px;
+
+    background: rgba(255, 255, 255, .35);
+}
+
+.contextStatValue {
+    color: rgba(0, 0, 0, .5);
+
+    font-size: .75rem;
+    font-weight: 400;
+}
+
+.contextStatLabel {
+    margin-top: 2px;
+
+    color: rgba(0, 0, 0, .25);
+
+    font-size: .6rem;
+}
+
+/* knowledge */
+
+.knowledgeContent {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.knowledgeAdd {
+    display: flex;
+    gap: 6px;
+}
+
+.knowledgeAdd input {
+    flex: 1;
+
+    min-width: 0;
+
+    height: 34px;
+
+    padding: 0 12px;
+
+    border: 1px solid rgba(0, 0, 0, .08);
+    border-radius: 999px;
+
+    background: rgba(255, 255, 255, .45);
+
+    color: rgba(0, 0, 0, .5);
+
+    font-family: inherit;
+    font-size: .75rem;
+
+    outline: none;
+}
+
+.knowledgeAdd input:focus {
+    border-color: rgba(0, 0, 0, .15);
+}
+
+.knowledgeList {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.knowledgeItem {
+    min-height: 34px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+
+    padding: 6px 10px;
+
+    border-radius: 14px;
+
+    background: rgba(255, 255, 255, .35);
+
+    color: rgba(0, 0, 0, .45);
+
+    font-size: .72rem;
+}
+
+.knowledgeItem span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* conversation history */
+.conversationHistory {
+
+    margin-top: 32px;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 6px;
+
+}
+
+.historyTitle {
+
+    padding: 0 16px;
+    margin-bottom: 6px;
+
+    color: rgba(0, 0, 0, .3);
+
+    font-size: .7rem;
+
+    text-transform: uppercase;
+
+    letter-spacing: .04em;
+
+}
+
+.historyEmpty {
+
+    padding: 8px 16px;
+
+    color: rgba(0, 0, 0, .25);
+
+    font-size: .75rem;
+
+}
+
+.historyItem {
+
+    width: 100%;
+    min-height: 40px;
+
+    display: flex;
+    align-items: center;
+
+    padding: 0 16px;
+
+    border: none;
+    border-radius: 30px;
+
+    background: transparent;
+
+    color: rgba(0, 0, 0, .45);
+
+    font-size: .8rem;
+    font-family: inherit;
+
+    text-align: left;
+
+    cursor: pointer;
+
+    transition:
+        background .2s ease,
+        color .2s ease,
+        transform .2s ease;
+
+}
+
+.historyItem:hover {
+
+    background: rgba(255, 255, 255, .45);
+
+    color: rgba(0, 0, 0, .7);
+
+    transform: translateY(-1px);
+
+}
+
+.historyItem.active {
+
+    background: rgba(255, 255, 255, .55);
+
+    color: rgba(0, 0, 0, .65);
+
+}
+
 /* response */
 .responsePanel {
 
@@ -497,11 +1175,12 @@
     margin-right: 32px;
     margin-left: 64px;
 
+    display: flex;
+    flex-direction: column;
+
     border-radius: 32px;
 
     background: rgba(255, 255, 255, 0.025);
-
-    /* background: #000000; */
 
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -513,10 +1192,40 @@
     opacity: 0;
 
     transition:
-
         width .45s ease,
         opacity .35s ease;
 
+}
+
+.responsePanel .responseBody {
+
+    flex: 1;
+
+    min-height: 0;
+
+    overflow-y: auto;
+
+}
+
+.responsePanel .responseBody::-webkit-scrollbar {
+    width: 5px;
+}
+
+.responsePanel .responseBody::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.responsePanel .responseBody::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 999px;
+}
+
+.responsePanel .responseBody:hover::-webkit-scrollbar-thumb {
+    background: rgba(131, 129, 129, 0.35);
+}
+
+.responsePanel .responseBody::-webkit-scrollbar-thumb:hover {
+    background: rgba(131, 129, 129, 0.55);
 }
 
 .workspace.responseOpen .hero {
@@ -606,7 +1315,8 @@
 
     .mobileResponsePanel {
 
-        display: block;
+        display: flex;
+        flex-direction: column;
 
         position: fixed;
 
@@ -615,7 +1325,7 @@
         left: 20px;
         right: 20px;
 
-        bottom: 145px;
+        bottom: 190px;
 
         border-radius: 32px;
 
@@ -640,7 +1350,7 @@
 
     .mobileResponsePanel.open {
 
-        display: block;
+        display: flex;
 
         opacity: 1;
 
@@ -652,6 +1362,37 @@
 
 }
 
+.mobileResponsePanel .responseBody {
+
+    flex: 1;
+
+    min-height: 0;
+
+    overflow-y: auto;
+
+}
+
+.mobileResponsePanel .responseBody::-webkit-scrollbar {
+    width: 5px;
+}
+
+.mobileResponsePanel .responseBody::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.mobileResponsePanel .responseBody::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 999px;
+}
+
+.mobileResponsePanel .responseBody:hover::-webkit-scrollbar-thumb {
+    background: rgba(131, 129, 129, 0.35);
+}
+
+.mobileResponsePanel .responseBody::-webkit-scrollbar-thumb:hover {
+    background: rgba(131, 129, 129, 0.55);
+}
+
 /* dots */
 .thinkingLoader {
 
@@ -659,9 +1400,7 @@
     justify-content: center;
     align-items: center;
 
-    width: 100%;
-
-    margin-top: 120px;
+    gap: 4px;
 
 }
 
@@ -719,77 +1458,105 @@
 
 }
 
-/* response */
-.responseBody{
+/* conversation */
 
-    padding:32px;
+.responseBody {
+
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+
+    padding: 32px;
 
     color: rgba(131, 129, 129, 0.9);
 
-    font-size:.9rem;
+    font-size: .9rem;
+    line-height: 1.5;
 
-    line-height:1.4;
+    overflow-y: auto;
 
-    white-space:pre-wrap;
+    min-height: 0;
+
+    white-space: pre-wrap;
+}
+
+.message {
+
+    white-space: pre-wrap;
 
 }
 
-/* orb animation */
-.orb{
+.message.user {
 
-    transition:
-        transform .6s ease,
-        filter .6s ease;
+    align-self: flex-end;
 
-}
+    max-width: 80%;
 
-.orb:hover{
+    padding: 12px 16px;
 
-    transform:scale(1.02);
+    border-radius: 20px;
 
-    filter:
-        brightness(1.05)
-        drop-shadow(0 0 35px rgba(255,255,255,.12));
+    background: rgba(255, 255, 255, .08);
 
 }
 
-.orb.thinking{
+.message.assistant {
 
-    animation:orbThinking 2s ease-in-out infinite;
+    align-self: flex-start;
+
+    max-width: 90%;
 
 }
 
-@keyframes orbThinking{
+/* toast */
+/* toast */
 
-    0%{
+.appToast {
 
-        transform:scale(1);
+    position: fixed;
 
-        filter:
-            brightness(1)
-            drop-shadow(0 0 10px rgba(255,255,255,.08));
+    left: 24px;
+    bottom: 24px;
+
+    padding: 12px 18px;
+
+    border-radius: 999px;
+
+    background: rgba(255, 255, 255, 0.08);
+
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+
+    border: 1px solid rgba(255, 255, 255, .4);
+
+    color: rgba(0, 0, 0, .55);
+
+    font-size: .75rem;
+    font-family: inherit;
+
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .08);
+
+    z-index: 1000;
+
+    animation: toastSlideUp .3s ease forwards;
+
+}
+
+@keyframes toastSlideUp {
+
+    from {
+
+        opacity: 0;
+
+        transform: translateY(20px);
 
     }
 
-    50%{
+    to {
 
-        transform:
-            scale(1.04)
-            rotate(.8deg);
+        opacity: 1;
 
-        filter:
-            brightness(1.12)
-            drop-shadow(0 0 40px rgba(255,255,255,.22));
-
-    }
-
-    100%{
-
-        transform:scale(1);
-
-        filter:
-            brightness(1)
-            drop-shadow(0 0 10px rgba(255,255,255,.08));
+        transform: translateY(0);
 
     }
 

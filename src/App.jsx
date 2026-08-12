@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
 import {
   ArrowRight,
   Mic,
@@ -33,6 +34,12 @@ function App() {
 
   const inputRef = useRef(null);
 
+  const desktopResponseBodyRef = useRef(null);
+  const mobileResponseBodyRef = useRef(null);
+
+  const desktopShouldAutoScrollRef = useRef(true);
+  const mobileShouldAutoScrollRef = useRef(true);
+
   const [savedDraft, setSavedDraft] = useState("");
 
   const waveformBars = Array.from({ length: 72 });
@@ -41,12 +48,414 @@ function App() {
 
   const [openSection, setOpenSection] = useState(null);
 
+  // personality state
+  // default personalty
+  const defaultPersonality = {
+    tone: "Balanced",
+    responseStyle: "Concise",
+    formality: "Neutral",
+    creativity: "Balanced",
+    customInstructions: "",
+  };
+
+  const [personality, setPersonality] = useState(
+    defaultPersonality
+  );
+
+  const [personalityDraft, setPersonalityDraft] = useState(
+    defaultPersonality
+  );
+
+  // memory states 
+  // defauly memory
+  const defaultMemory = {
+    enabled: true,
+    memories: [],
+  };
+
+  const [memory, setMemory] = useState(
+    defaultMemory
+  );
+
+  const [memoryInput, setMemoryInput] = useState("");
+
+  const [editingMemoryIndex, setEditingMemoryIndex] = useState(null);
+  const [editingMemoryValue, setEditingMemoryValue] = useState("");
+
+  // context state
+  const defaultContext = {
+    includeConversation: true,
+    includePersonality: true,
+    includeMemory: true,
+    includeKnowledge: true,
+    maxMessages: 20,
+  };
+
+  const [context, setContext] = useState(
+    defaultContext
+  );
+
+  // knowledge state
+  const defaultKnowledge = {
+    enabled: true,
+    documents: [],
+  };
+
+  const [knowledge, setKnowledge] = useState(
+    defaultKnowledge
+  );
+
+  const [knowledgeInput, setKnowledgeInput] = useState("");
+
   const [showResponse, setShowResponse] = useState(false);
 
   const [isThinking, setIsThinking] = useState(false);
 
-  // fake streaming
-  const [response, setResponse] = useState("");
+  // toast
+  const [toast, setToast] = useState("");
+
+  // helper
+  const createConversation = (
+    conversationPersonality = personality,
+    conversationMemory = memory,
+    conversationContext = context
+  ) => ({
+    id: Date.now(),
+    title: "New Conversation",
+    messages: [],
+    personality: {
+      ...conversationPersonality,
+    },
+    memory: {
+      ...conversationMemory,
+      memories: [...conversationMemory.memories],
+    },
+    context: {
+      ...conversationContext,
+    },
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+
+  const createConversationTitle = (text) => {
+
+    const cleanText = text.trim();
+
+    if (cleanText.length <= 40) {
+      return cleanText;
+    }
+
+    return `${cleanText.slice(0, 40).trim()}...`;
+
+  };
+
+  // restore memory & personality when switching conversations
+  const switchConversation = (selectedConversation) => {
+
+    setConversation(selectedConversation);
+
+    setPersonality({
+      ...selectedConversation.personality,
+    });
+
+    setPersonalityDraft({
+      ...selectedConversation.personality,
+    });
+
+    setMemory({
+      ...selectedConversation.memory,
+      memories: [
+        ...selectedConversation.memory.memories,
+      ],
+    });
+
+    // defensive 
+    setContext({
+      ...defaultContext,
+      ...(selectedConversation.context || {}),
+    });
+
+    setEditingMemoryIndex(null);
+    setEditingMemoryValue("");
+    setMemoryInput("");
+
+    setShowResponse(true);
+
+  };
+
+  // personality
+  const buildPersonalityInstructions = (settings) => {
+
+    const instructions = [];
+
+    instructions.push(
+      `Use a ${settings.tone.toLowerCase()} tone.`
+    );
+
+    instructions.push(
+      `Keep responses ${settings.responseStyle.toLowerCase()}.`
+    );
+
+    instructions.push(
+      `Use a ${settings.formality.toLowerCase()} level of formality.`
+    );
+
+    instructions.push(
+      `Use a ${settings.creativity.toLowerCase()} level of creativity.`
+    );
+
+    if (settings.customInstructions.trim()) {
+
+      instructions.push(
+        settings.customInstructions.trim()
+      );
+
+    }
+
+    return instructions.join(" ");
+
+  };
+
+  // knowledge builder
+  const buildKnowledgeInstructions = () => {
+
+    if (
+      !knowledge.enabled ||
+      knowledge.documents.length === 0
+    ) {
+      return "";
+    }
+
+    return knowledge.documents
+      .map(
+        (document) =>
+          `Document: ${document.name}\n${document.content}`
+      )
+      .join("\n\n");
+
+  };
+
+  // ai request payload
+  const buildAIRequest = (userPrompt) => {
+
+    const messages = [];
+
+    if (context.includePersonality) {
+
+      messages.push({
+        role: "system",
+        content: buildPersonalityInstructions(personality),
+      });
+
+    }
+
+    if (
+      context.includeMemory &&
+      memory.enabled &&
+      memory.memories.length > 0
+    ) {
+
+      messages.push({
+        role: "system",
+        content: `Relevant memories:\n${buildMemoryInstructions()}`,
+      });
+
+    }
+
+    if (
+      context.includeKnowledge &&
+      knowledge.enabled &&
+      knowledge.documents.length > 0
+    ) {
+
+      messages.push({
+        role: "system",
+        content: `Relevant knowledge:\n${buildKnowledgeInstructions()}`,
+      });
+
+    }
+
+    if (context.includeConversation) {
+
+      const conversationMessages =
+        conversation.messages
+          .slice(-context.maxMessages)
+          .filter((message) => message.content);
+
+      messages.push(
+        ...conversationMessages.map((message) => ({
+          role: message.role,
+          content: message.content,
+        }))
+      );
+
+    }
+
+    messages.push({
+      role: "user",
+      content: userPrompt,
+    });
+
+    return {
+      messages,
+    };
+
+  };
+
+  // context stat helper
+  const getContextStats = () => {
+
+    const conversationMessages = context.includeConversation
+      ? conversation.messages
+        .slice(-context.maxMessages)
+        .filter((message) => message.content)
+      : [];
+
+    const memoryCount =
+      context.includeMemory && memory.enabled
+        ? memory.memories.length
+        : 0;
+
+    return {
+      messages: conversationMessages.length,
+      memories: memoryCount,
+      personality: context.includePersonality,
+    };
+
+  };
+
+  //memory builder
+  const buildMemoryInstructions = () => {
+
+    if (!memory.enabled || memory.memories.length === 0) {
+      return "";
+    }
+
+    return memory.memories
+      .map((item) => `- ${item}`)
+      .join("\n");
+
+  };
+
+  // memory extraction
+  const extractMemory = (userPrompt) => {
+
+    const text = userPrompt.trim();
+
+    if (!text) {
+      return null;
+    }
+
+    const patterns = [
+      {
+        regex: /^my name is (.+)$/i,
+        format: (match) => `User's name is ${match[1].trim()}.`,
+      },
+      {
+        regex: /^i(?:'m| am) (?:a |an )?(.+)$/i,
+        format: (match) => `User is ${match[1].trim()}.`,
+      },
+      {
+        regex: /^i (?:like|love|prefer) (.+)$/i,
+        format: (match) => `User likes ${match[1].trim()}.`,
+      },
+      {
+        regex: /^i work (?:as|at) (.+)$/i,
+        format: (match) => `User works ${match[1].trim()}.`,
+      },
+    ];
+
+    for (const pattern of patterns) {
+
+      const match = text.match(pattern.regex);
+
+      if (match) {
+        return pattern.format(match);
+      }
+
+    }
+
+    return null;
+
+  };
+
+  //
+  const saveConversationToHistory = (currentConversation) => {
+
+    if (currentConversation.messages.length === 0) {
+      return;
+    }
+
+    setConversationHistory((currentHistory) => {
+
+      const existingConversation = currentHistory.find(
+        (item) => item.id === currentConversation.id
+      );
+
+      if (existingConversation) {
+
+        return currentHistory.map((item) =>
+          item.id === currentConversation.id
+            ? currentConversation
+            : item
+        );
+
+      }
+
+      return [
+        ...currentHistory,
+        currentConversation,
+      ];
+
+    });
+
+  };
+
+  // set and reset personality 
+  const savePersonality = () => {
+
+    setPersonality({
+      ...personalityDraft,
+    });
+
+    setConversation((current) => ({
+      ...current,
+      personality: {
+        ...personalityDraft,
+      },
+      updatedAt: Date.now(),
+    }));
+
+    showToast("Changes saved");
+
+  };
+  const resetPersonality = () => {
+
+    setPersonalityDraft({
+      ...defaultPersonality,
+    });
+
+    showToast("Personality reset");
+
+  };
+
+  const showToast = (message) => {
+
+    setToast(message);
+
+    setTimeout(() => {
+      setToast("");
+    }, 2500);
+
+  };
+
+  // conversation
+  const [conversation, setConversation] = useState(
+    createConversation()
+  );
+
+  const [conversationHistory, setConversationHistory] = useState([]);
+
   const [isStreaming, setIsStreaming] = useState(false);
 
   const fakeResponse =
@@ -54,8 +463,6 @@ function App() {
 
   const streamRef = useRef(null);
   const thinkingTimeoutRef = useRef(null);
-
-  const [isOrbThinking, setIsOrbThinking] = useState(false);
 
   const isMobile = window.innerWidth <= 768;
 
@@ -80,7 +487,6 @@ function App() {
 
     setIsThinking(false);
     setIsStreaming(false);
-    setIsOrbThinking(false);
 
   };
 
@@ -96,28 +502,78 @@ function App() {
 
       setShowResponse(true);
 
-      setIsOrbThinking(true);
 
       inputRef.current?.focus();
       return;
     }
 
-    // Normal text mode
     if (!prompt.trim()) return;
 
-    console.log(prompt);
+    const userPrompt = prompt.trim();
 
-    const userPrompt = prompt;
+    const memoryCandidate = extractMemory(userPrompt);
+
+    const aiRequest = buildAIRequest(userPrompt);
+
+    console.log("AI request:", aiRequest);
 
     setPrompt("");
-
     setShowResponse(true);
 
     setIsThinking(true);
 
     inputRef.current?.focus();
 
-    setResponse("");
+    const userMessage = {
+      id: Date.now(),
+      role: "user",
+      content: userPrompt,
+    };
+
+    const assistantMessage = {
+      id: Date.now() + 1,
+      role: "assistant",
+      content: "",
+    };
+
+    desktopShouldAutoScrollRef.current = true;
+    mobileShouldAutoScrollRef.current = true;
+
+    setConversation((current) => ({
+      ...current,
+
+      title:
+        current.messages.length === 0
+          ? createConversationTitle(userPrompt)
+          : current.title,
+
+      messages: [
+        ...current.messages,
+        userMessage,
+        assistantMessage,
+      ],
+
+      updatedAt: Date.now(),
+    }));
+
+    // store extracted memory
+    if (
+      memory.enabled &&
+      memoryCandidate &&
+      !memory.memories.includes(memoryCandidate)
+    ) {
+
+      setMemory((current) => ({
+        ...current,
+
+        memories: [
+          ...current.memories,
+          memoryCandidate,
+        ],
+
+      }));
+
+    }
 
     thinkingTimeoutRef.current = setTimeout(() => {
 
@@ -126,15 +582,26 @@ function App() {
       setIsThinking(false);
       setIsStreaming(true);
 
-      setIsOrbThinking(false);
-
       let i = 0;
 
       streamRef.current = setInterval(() => {
 
         i++;
 
-        setResponse(fakeResponse.slice(0, i));
+        setConversation((current) => ({
+          ...current,
+
+          messages: current.messages.map((message) =>
+            message.id === assistantMessage.id
+              ? {
+                ...message,
+                content: fakeResponse.slice(0, i),
+              }
+              : message
+          ),
+
+          updatedAt: Date.now(),
+        }));
 
         if (i >= fakeResponse.length) {
 
@@ -156,6 +623,94 @@ function App() {
     );
   };
 
+  // desktop scroll function
+  const handleDesktopResponseScroll = () => {
+
+    const body = desktopResponseBodyRef.current;
+
+    if (!body) return;
+
+    const distanceFromBottom =
+      body.scrollHeight -
+      body.scrollTop -
+      body.clientHeight;
+
+    desktopShouldAutoScrollRef.current =
+      distanceFromBottom < 40;
+
+  };
+
+  // mobile scroll function 
+  const handleMobileResponseScroll = () => {
+
+    const body = mobileResponseBodyRef.current;
+
+    if (!body) return;
+
+    const distanceFromBottom =
+      body.scrollHeight -
+      body.scrollTop -
+      body.clientHeight;
+
+    mobileShouldAutoScrollRef.current =
+      distanceFromBottom < 40;
+
+  };
+
+  // useEffect scroll
+  useEffect(() => {
+
+    const desktopBody = desktopResponseBodyRef.current;
+    const mobileBody = mobileResponseBodyRef.current;
+
+    if (
+      desktopBody &&
+      desktopShouldAutoScrollRef.current
+    ) {
+      desktopBody.scrollTop = desktopBody.scrollHeight;
+    }
+
+    if (
+      mobileBody &&
+      mobileShouldAutoScrollRef.current
+    ) {
+      mobileBody.scrollTop = mobileBody.scrollHeight;
+    }
+
+  }, [conversation.messages, isThinking]);
+
+  // conversation history 
+  useEffect(() => {
+
+    if (conversation.messages.length === 0) {
+      return;
+    }
+
+    setConversationHistory((currentHistory) => {
+
+      const exists = currentHistory.some(
+        (item) => item.id === conversation.id
+      );
+
+      if (exists) {
+
+        return currentHistory.map((item) =>
+          item.id === conversation.id
+            ? conversation
+            : item
+        );
+
+      }
+
+      return [
+        ...currentHistory,
+        conversation,
+      ];
+
+    });
+
+  }, [conversation]);
+
   return (
     <main className="app">
 
@@ -169,7 +724,13 @@ function App() {
 
       {/* panel */}
       <div className={`sidePanel ${showPanel ? "open" : ""}`}>
+
         <div className="panelMenu">
+
+          <div className="historyTitle">
+            Tools
+          </div>
+
           <div className="panelGroup">
 
             <button
@@ -202,11 +763,143 @@ function App() {
 
             </button>
 
+            {/* personality open side panel */}
             {openSection === "personality" && (
 
-              <div className="panelContent">
+              <div className="panelContent personalityContent">
 
-                Personality content
+                <div className="personalityField">
+
+                  <span className="personalityLabel">
+                    Tone
+                  </span>
+
+                  <select
+                    value={personalityDraft.tone}
+                    onChange={(e) =>
+                      setPersonalityDraft((current) => ({
+                        ...current,
+                        tone: e.target.value,
+                      }))
+                    }
+                  >
+                    <option>Balanced</option>
+                    <option>Professional</option>
+                    <option>Friendly</option>
+                    <option>Direct</option>
+                  </select>
+
+                </div>
+
+
+                <div className="personalityField">
+
+                  <span className="personalityLabel">
+                    Response style
+                  </span>
+
+                  <select
+                    value={personalityDraft.responseStyle}
+                    onChange={(e) =>
+                      setPersonalityDraft((current) => ({
+                        ...current,
+                        responseStyle: e.target.value,
+                      }))
+                    }
+                  >
+                    <option>Concise</option>
+                    <option>Balanced</option>
+                    <option>Detailed</option>
+                  </select>
+
+                </div>
+
+
+                <div className="personalityField">
+
+                  <span className="personalityLabel">
+                    Formality
+                  </span>
+
+                  <select
+                    value={personalityDraft.formality}
+                    onChange={(e) =>
+                      setPersonalityDraft((current) => ({
+                        ...current,
+                        formality: e.target.value,
+                      }))
+                    }
+                  >
+                    <option>Neutral</option>
+                    <option>Casual</option>
+                    <option>Formal</option>
+                  </select>
+
+                </div>
+
+
+                <div className="personalityField">
+
+                  <span className="personalityLabel">
+                    Creativity
+                  </span>
+
+                  <select
+                    value={personalityDraft.creativity}
+                    onChange={(e) =>
+                      setPersonalityDraft((current) => ({
+                        ...current,
+                        creativity: e.target.value,
+                      }))
+                    }
+                  >
+                    <option>Balanced</option>
+                    <option>Focused</option>
+                    <option>Creative</option>
+                  </select>
+
+                </div>
+
+
+                <div className="personalityField">
+
+                  <span className="personalityLabel">
+                    Custom instructions
+                  </span>
+
+                  <textarea
+                    value={personalityDraft.customInstructions}
+                    onChange={(e) =>
+                      setPersonalityDraft((current) => ({
+                        ...current,
+                        customInstructions: e.target.value,
+                      }))
+                    }
+                    placeholder="Add instructions..."
+                  />
+
+                </div>
+
+
+                <div className="personalityActions">
+
+                  <button
+                    type="button"
+                    className="personalityReset"
+                    onClick={resetPersonality}
+                  >
+                    Reset
+                  </button>
+
+                  <button
+                    type="button"
+                    className="personalitySave"
+                    onClick={savePersonality}
+                  >
+                    Save
+                  </button>
+
+                </div>
 
               </div>
 
@@ -248,9 +941,259 @@ function App() {
 
             {openSection === "memory" && (
 
-              <div className="panelContent">
+              <div className="panelContent memoryContent">
 
-                Memory content
+                <div className="memoryToggleRow">
+
+                  <span className="personalityLabel">
+                    Memory
+                  </span>
+
+                  <button
+                    type="button"
+                    className={`memoryToggle ${memory.enabled ? "active" : ""}`}
+                    onClick={() => {
+
+                      setMemory((current) => {
+
+                        const updatedMemory = {
+                          ...current,
+                          enabled: !current.enabled,
+                        };
+
+                        setConversation((conversation) => ({
+                          ...conversation,
+                          memory: {
+                            ...updatedMemory,
+                            memories: [...updatedMemory.memories],
+                          },
+                          updatedAt: Date.now(),
+                        }));
+
+                        return updatedMemory;
+
+                      });
+
+                    }}
+                  >
+                    <span />
+                  </button>
+
+                </div>
+
+                <div className="memoryDescription">
+                  Allow the assistant to remember information between conversations.
+                </div>
+
+                {/* memory input */}
+                <div className="memoryAdd">
+
+                  <input
+                    type="text"
+                    value={memoryInput}
+                    onChange={(e) => setMemoryInput(e.target.value)}
+                    placeholder="Add a memory..."
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
+
+                      const value = memoryInput.trim();
+
+                      if (!value) return;
+
+                      setMemory((current) => {
+
+                        const updatedMemory = {
+                          ...current,
+                          memories: [
+                            ...current.memories,
+                            value,
+                          ],
+                        };
+
+                        setConversation((conversation) => ({
+                          ...conversation,
+                          memory: {
+                            ...updatedMemory,
+                            memories: [...updatedMemory.memories],
+                          },
+                          updatedAt: Date.now(),
+                        }));
+
+                        return updatedMemory;
+
+                      });
+
+                      setMemoryInput("");
+                    }}
+                  />
+
+                  <button
+                    type="button"
+                    className="memoryAddButton"
+                    onClick={() => {
+
+                      const value = memoryInput.trim();
+
+                      if (!value) return;
+
+                      setMemory((current) => {
+
+                        const updatedMemory = {
+                          ...current,
+                          memories: [
+                            ...current.memories,
+                            value,
+                          ],
+                        };
+
+                        setConversation((conversation) => ({
+                          ...conversation,
+                          memory: {
+                            ...updatedMemory,
+                            memories: [...updatedMemory.memories],
+                          },
+                          updatedAt: Date.now(),
+                        }));
+
+                        return updatedMemory;
+
+                      });
+
+                      setMemoryInput("");
+
+                    }}
+                  >
+                    Add
+                  </button>
+
+                </div>
+
+                {memory.enabled && (
+
+                  <div className="memoryList">
+
+                    {memory.memories.length === 0 ? (
+
+                      <div className="memoryEmpty">
+                        No memories stored
+                      </div>
+
+                    ) : (
+
+                      memory.memories.map((item, index) => (
+
+                        <div
+                          key={index}
+                          className="memoryItem"
+                        >
+
+                          {editingMemoryIndex === index ? (
+
+                            <input
+                              className="memoryEditInput"
+                              value={editingMemoryValue}
+                              onChange={(e) =>
+                                setEditingMemoryValue(e.target.value)
+                              }
+                              onKeyDown={(e) => {
+
+                                if (e.key !== "Enter") return;
+
+                                const value = editingMemoryValue.trim();
+
+                                if (!value) return;
+
+                                setMemory((current) => {
+
+                                  const updatedMemory = {
+                                    ...current,
+                                    memories: current.memories.map(
+                                      (memoryItem, memoryIndex) =>
+                                        memoryIndex === index
+                                          ? value
+                                          : memoryItem
+                                    ),
+                                  };
+
+                                  setConversation((conversation) => ({
+                                    ...conversation,
+                                    memory: {
+                                      ...updatedMemory,
+                                      memories: [...updatedMemory.memories],
+                                    },
+                                    updatedAt: Date.now(),
+                                  }));
+
+                                  return updatedMemory;
+
+                                });
+
+                                setEditingMemoryIndex(null);
+                                setEditingMemoryValue("");
+
+                              }}
+                            />
+
+                          ) : (
+
+                            <button
+                              type="button"
+                              className="memoryText"
+                              onClick={() => {
+                                setEditingMemoryIndex(index);
+                                setEditingMemoryValue(item);
+                              }}
+                            >
+                              {item}
+                            </button>
+
+                          )}
+
+                          <button
+                            type="button"
+                            className="memoryRemove"
+                            onClick={() => {
+
+                              setMemory((current) => {
+
+                                const updatedMemory = {
+                                  ...current,
+                                  memories: current.memories.filter(
+                                    (_, memoryIndex) =>
+                                      memoryIndex !== index
+                                  ),
+                                };
+
+                                setConversation((conversation) => ({
+                                  ...conversation,
+                                  memory: {
+                                    ...updatedMemory,
+                                    memories: [...updatedMemory.memories],
+                                  },
+                                  updatedAt: Date.now(),
+                                }));
+
+                                return updatedMemory;
+
+                              });
+
+                            }}
+                          >
+                            <X
+                              size={13}
+                              strokeWidth={1.5}
+                            />
+                          </button>
+
+                        </div>
+
+                      ))
+
+                    )}
+
+                  </div>
+
+                )}
 
               </div>
 
@@ -292,9 +1235,127 @@ function App() {
 
             {openSection === "knowledge" && (
 
-              <div className="panelContent">
+              <div className="panelContent knowledgeContent">
 
-                Knowledge content
+                <div className="memoryToggleRow">
+
+                  <span className="personalityLabel">
+                    Knowledge
+                  </span>
+
+                  <button
+                    type="button"
+                    className={`memoryToggle ${knowledge.enabled ? "active" : ""
+                      }`}
+                    onClick={() => {
+
+                      setKnowledge((current) => ({
+                        ...current,
+                        enabled: !current.enabled,
+                      }));
+
+                    }}
+                  >
+                    <span />
+                  </button>
+
+                </div>
+
+                <div className="memoryDescription">
+                  Use stored documents as additional knowledge for responses.
+                </div>
+
+                <div className="knowledgeAdd">
+
+                  <input
+                    type="text"
+                    value={knowledgeInput}
+                    onChange={(e) =>
+                      setKnowledgeInput(e.target.value)
+                    }
+                    placeholder="Document name..."
+                  />
+
+                  <button
+                    type="button"
+                    className="memoryAddButton"
+                    onClick={() => {
+
+                      const name = knowledgeInput.trim();
+
+                      if (!name) return;
+
+                      setKnowledge((current) => ({
+                        ...current,
+                        documents: [
+                          ...current.documents,
+                          {
+                            id: Date.now(),
+                            name,
+                            content: `Sample content from ${name}.`,
+                          },
+                        ],
+                      }));
+
+                      setKnowledgeInput("");
+
+                    }}
+                  >
+                    Add
+                  </button>
+
+                </div>
+
+                <div className="knowledgeList">
+
+                  {knowledge.documents.length === 0 ? (
+
+                    <div className="memoryEmpty">
+                      No knowledge stored
+                    </div>
+
+                  ) : (
+
+                    knowledge.documents.map((document) => (
+
+                      <div
+                        key={document.id}
+                        className="knowledgeItem"
+                      >
+
+                        <span>
+                          {document.name}
+                        </span>
+
+                        <button
+                          type="button"
+                          className="memoryRemove"
+                          onClick={() => {
+
+                            setKnowledge((current) => ({
+                              ...current,
+                              documents:
+                                current.documents.filter(
+                                  (item) =>
+                                    item.id !== document.id
+                                ),
+                            }));
+
+                          }}
+                        >
+                          <X
+                            size={13}
+                            strokeWidth={1.5}
+                          />
+                        </button>
+
+                      </div>
+
+                    ))
+
+                  )}
+
+                </div>
 
               </div>
 
@@ -380,9 +1441,304 @@ function App() {
 
             {openSection === "context" && (
 
-              <div className="panelContent">
+              <div className="panelContent contextContent">
 
-                Context content
+                <div className="contextField">
+
+                  <div className="contextToggleRow">
+
+                    <span className="personalityLabel">
+                      Conversation
+                    </span>
+
+                    <button
+                      type="button"
+                      className={`memoryToggle ${context.includeConversation ? "active" : ""
+                        }`}
+                      onClick={() => {
+
+                        setContext((current) => {
+
+                          const updatedContext = {
+                            ...current,
+                            includeConversation: !current.includeConversation,
+                          };
+
+                          setConversation((conversation) => ({
+                            ...conversation,
+                            context: {
+                              ...updatedContext,
+                            },
+                            updatedAt: Date.now(),
+                          }));
+
+                          return updatedContext;
+
+                        });
+
+                      }}
+                    >
+                      <span />
+                    </button>
+
+                  </div>
+
+                  <div className="memoryDescription">
+                    Include previous messages when generating a response.
+                  </div>
+
+                </div>
+
+
+                <div className="contextField">
+
+                  <div className="contextToggleRow">
+
+                    <span className="personalityLabel">
+                      Personality
+                    </span>
+
+                    <button
+                      type="button"
+                      className={`memoryToggle ${context.includePersonality ? "active" : ""
+                        }`}
+                      onClick={() => {
+
+                        setContext((current) => {
+
+                          const updatedContext = {
+                            ...current,
+                            includePersonality: !current.includePersonality,
+                          };
+
+                          setConversation((conversation) => ({
+                            ...conversation,
+                            context: {
+                              ...updatedContext,
+                            },
+                            updatedAt: Date.now(),
+                          }));
+
+                          return updatedContext;
+
+                        });
+
+                      }}
+                    >
+                      <span />
+                    </button>
+
+                  </div>
+
+                  <div className="memoryDescription">
+                    Include personality instructions in the request.
+                  </div>
+
+                </div>
+
+
+                <div className="contextField">
+
+                  <div className="contextToggleRow">
+
+                    <span className="personalityLabel">
+                      Memory
+                    </span>
+
+                    <button
+                      type="button"
+                      className={`memoryToggle ${context.includeMemory ? "active" : ""
+                        }`}
+                      onClick={() => {
+
+                        setContext((current) => {
+
+                          const updatedContext = {
+                            ...current,
+                            includeMemory: !current.includeMemory,
+                          };
+
+                          setConversation((conversation) => ({
+                            ...conversation,
+                            context: {
+                              ...updatedContext,
+                            },
+                            updatedAt: Date.now(),
+                          }));
+
+                          return updatedContext;
+
+                        });
+
+                      }}
+                    >
+                      <span />
+                    </button>
+
+                  </div>
+
+                  <div className="memoryDescription">
+                    Include relevant saved memories.
+                  </div>
+
+                </div>
+
+
+                <div className="contextField">
+
+                  <span className="personalityLabel">
+                    Conversation messages
+                  </span>
+
+                  <select
+                    value={context.maxMessages}
+                    onChange={(e) => {
+
+                      setContext((current) => {
+
+                        const updatedContext = {
+                          ...current,
+                          maxMessages: Number(e.target.value),
+                        };
+
+                        setConversation((conversation) => ({
+                          ...conversation,
+                          context: {
+                            ...updatedContext,
+                          },
+                          updatedAt: Date.now(),
+                        }));
+
+                        return updatedContext;
+
+                      });
+
+                    }}
+                  >
+                    <option value={5}>Last 5</option>
+                    <option value={10}>Last 10</option>
+                    <option value={20}>Last 20</option>
+                    <option value={50}>Last 50</option>
+                  </select>
+
+                </div>
+
+                <div className="contextField">
+
+                  <div className="contextToggleRow">
+
+                    <span className="personalityLabel">
+                      Knowledge
+                    </span>
+
+                    <button
+                      type="button"
+                      className={`memoryToggle ${context.includeKnowledge ? "active" : ""
+                        }`}
+                      onClick={() => {
+
+                        setContext((current) => {
+
+                          const updatedContext = {
+                            ...current,
+                            includeKnowledge:
+                              !current.includeKnowledge,
+                          };
+
+                          setConversation((conversation) => ({
+                            ...conversation,
+                            context: {
+                              ...updatedContext,
+                            },
+                            updatedAt: Date.now(),
+                          }));
+
+                          return updatedContext;
+
+                        });
+
+                      }}
+                    >
+                      <span />
+                    </button>
+
+                  </div>
+
+                  <div className="memoryDescription">
+                    Include relevant knowledge in the request.
+                  </div>
+
+                </div>
+
+                <div className="contextSummary">
+
+                  <span className="personalityLabel">
+                    Active context
+                  </span>
+
+                  <div className="contextSummaryList">
+
+                    {context.includePersonality && (
+                      <span>Personality</span>
+                    )}
+
+                    {context.includeMemory && (
+                      <span>Memory</span>
+                    )}
+
+                    {context.includeConversation && (
+                      <span>Conversation</span>
+                    )}
+
+                    {context.includeKnowledge && (
+                      <span>Knowledge</span>
+                    )}
+
+                    <span>Current prompt</span>
+
+                  </div>
+
+                  <div className="contextStats">
+
+                    <div className="contextStat">
+
+                      <span className="contextStatValue">
+                        {getContextStats().messages}
+                      </span>
+
+                      <span className="contextStatLabel">
+                        messages
+                      </span>
+
+                    </div>
+
+                    <div className="contextStat">
+
+                      <span className="contextStatValue">
+                        {getContextStats().memories}
+                      </span>
+
+                      <span className="contextStatLabel">
+                        memories
+                      </span>
+
+                    </div>
+
+                    <div className="contextStat">
+
+                      <span className="contextStatValue">
+                        {getContextStats().personality ? "On" : "Off"}
+                      </span>
+
+                      <span className="contextStatLabel">
+                        personality
+                      </span>
+
+                    </div>
+
+                  </div>
+
+                </div>
 
               </div>
 
@@ -432,6 +1788,41 @@ function App() {
 
             )}
           </div>
+
+          {/* conversations panel group */}
+          <div className="conversationHistory">
+
+            <div className="historyTitle">
+              Conversations
+            </div>
+
+            {conversationHistory.length === 0 ? (
+
+              <div className="historyEmpty">
+                No conversations yet
+              </div>
+
+            ) : (
+
+              conversationHistory.map((item) => (
+
+                <button
+                  key={item.id}
+                  className={`historyItem ${item.id === conversation.id ? "active" : ""
+                    }`}
+                  onClick={() => {
+                    switchConversation(item);
+                  }}
+                >
+                  {item.title}
+                </button>
+
+              ))
+
+            )}
+
+          </div>
+
         </div>
       </div>
 
@@ -441,7 +1832,7 @@ function App() {
           <img
             src={orb}
             alt="AI Orb"
-            className={`orb ${isOrbThinking ? "thinking" : ""}`}
+            className="orb"
             draggable={false}
           />
 
@@ -571,6 +1962,8 @@ function App() {
                   setIsRecording(false);
                   setIsPaused(false);
 
+                  setConversation(createConversation());
+
                   inputRef.current?.focus();
 
                   console.log("New conversation");
@@ -594,22 +1987,39 @@ function App() {
 
             </div>
 
-            {isThinking && (
+            {/* conversation */}
+            <div
+              ref={desktopResponseBodyRef}
+              className="responseBody"
+              onScroll={handleDesktopResponseScroll}
+            >
 
-              <div className="thinkingLoader">
+              {conversation.messages.map((message) => (
 
-                <span />
-                <span />
-                <span />
+                <div
+                  key={message.id}
+                  className={`message ${message.role}`}
+                >
 
-              </div>
+                  {message.role === "assistant" && isThinking && message.content === "" ? (
 
-            )}
+                    <div className="thinkingLoader">
 
-            {/* response */}
-            <div className="responseBody">
+                      <span />
+                      <span />
+                      <span />
 
-              {response}
+                    </div>
+
+                  ) : (
+
+                    message.content
+
+                  )}
+
+                </div>
+
+              ))}
 
             </div>
 
@@ -630,6 +2040,8 @@ function App() {
                   setSavedDraft("");
                   setIsRecording(false);
                   setIsPaused(false);
+
+                  setConversation(createConversation());
 
                   inputRef.current?.focus();
                 }}
@@ -652,22 +2064,39 @@ function App() {
 
             </div>
 
-            {isThinking && (
-
-              <div className="thinkingLoader">
-
-                <span />
-                <span />
-                <span />
-
-              </div>
-
-            )}
-
             {/* response */}
-            <div className="responseBody">
+            <div
+              ref={mobileResponseBodyRef}
+              className="responseBody"
+              onScroll={handleMobileResponseScroll}
+            >
 
-              {response}
+              {conversation.messages.map((message) => (
+
+                <div
+                  key={message.id}
+                  className={`message ${message.role}`}
+                >
+
+                  {message.role === "assistant" && isThinking && message.content === "" ? (
+
+                    <div className="thinkingLoader">
+
+                      <span />
+                      <span />
+                      <span />
+
+                    </div>
+
+                  ) : (
+
+                    message.content
+
+                  )}
+
+                </div>
+
+              ))}
 
             </div>
 
@@ -676,6 +2105,18 @@ function App() {
         )}
 
       </div>
+
+      {/* toast */}
+      {toast && (
+
+        <div className="appToast">
+
+          {toast}
+
+        </div>
+
+      )}
+
     </main >
   );
 }
