@@ -35,6 +35,8 @@ import {
   deleteConversation,
 } from "./api/conversations";
 
+import { sendAIRequest } from "./api/ai";
+
 function App() {
   const [prompt, setPrompt] = useState("");
 
@@ -822,11 +824,9 @@ function App() {
 
   const [isStreaming, setIsStreaming] = useState(false);
 
-  const fakeResponse =
-    "Hello! I'm your AI assistant. This response is currently being streamed one character at a time so we can build the interface before connecting a real language model.";
-
   const streamRef = useRef(null);
   const thinkingTimeoutRef = useRef(null);
+  const aiAbortControllerRef = useRef(null);
 
   const isMobile = window.innerWidth <= 768;
 
@@ -836,15 +836,30 @@ function App() {
     // Stop thinking phase
     if (thinkingTimeoutRef.current) {
 
-      clearTimeout(thinkingTimeoutRef.current);
+      clearTimeout(
+        thinkingTimeoutRef.current
+      );
+
       thinkingTimeoutRef.current = null;
 
     }
 
-    // Stop streaming phase
+    // Stop AI network stream
+    if (aiAbortControllerRef.current) {
+
+      aiAbortControllerRef.current.abort();
+
+      aiAbortControllerRef.current = null;
+
+    }
+
+    // Stop legacy interval if present
     if (streamRef.current) {
 
-      clearInterval(streamRef.current);
+      clearInterval(
+        streamRef.current
+      );
+
       streamRef.current = null;
 
     }
@@ -880,20 +895,27 @@ function App() {
 
     const retrievedKnowledge = retrieveKnowledge(userPrompt);
 
-    console.log("Retrieved knowledge:", retrievedKnowledge);
+    console.log(
+      "Retrieved knowledge:",
+      retrievedKnowledge
+    );
 
     const aiRequest = buildAIRequest(
       userPrompt,
       retrievedKnowledge
     );
 
-    console.log("AI request:", aiRequest);
+    console.log(
+      "AI request:",
+      aiRequest
+    );
 
     setPrompt("");
     setShowResponse(true);
     setIsResponseMinimized(false);
 
     setIsThinking(true);
+    setIsStreaming(false);
 
     inputRef.current?.focus();
 
@@ -938,8 +960,10 @@ function App() {
       !memory.memories.includes(memoryCandidate)
     ) {
       setMemory((current) => {
+
         const updatedMemory = {
           ...current,
+
           memories: [
             ...current.memories,
             memoryCandidate,
@@ -948,56 +972,78 @@ function App() {
 
         setConversation((currentConversation) => ({
           ...currentConversation,
+
           memory: {
             ...updatedMemory,
+
             memories: [
               ...updatedMemory.memories,
             ],
           },
+
           updatedAt: Date.now(),
         }));
 
         return updatedMemory;
+
       });
     }
 
-    thinkingTimeoutRef.current = setTimeout(() => {
+    try {
 
-      thinkingTimeoutRef.current = null;
+      const abortController =
+        new AbortController();
+
+      aiAbortControllerRef.current =
+        abortController;
+
+      // Get the complete real AI response first.
+      const fullResponse =
+        await sendAIRequest(
+          aiRequest.messages,
+          abortController.signal
+        );
+
+      aiAbortControllerRef.current = null;
+
+      if (!fullResponse) {
+        throw new Error("AI returned an empty response.");
+      }
 
       setIsThinking(false);
       setIsStreaming(true);
 
-      let i = 0;
+      let index = 0;
 
       streamRef.current = setInterval(() => {
 
-        i++;
+        index++;
 
-        setConversation((current) => {
+        const visibleContent =
+          fullResponse.slice(0, index);
 
-          const updatedConversation = {
-            ...current,
+        setConversation((current) => ({
+          ...current,
 
-            messages: current.messages.map((message) =>
+          messages: current.messages.map(
+            (message) =>
               message.id === assistantMessage.id
                 ? {
                   ...message,
-                  content: fakeResponse.slice(0, i),
+                  content: visibleContent,
                 }
                 : message
-            ),
+          ),
 
-            updatedAt: Date.now(),
-          };
+          updatedAt: Date.now(),
+        }));
 
-          return updatedConversation;
+        if (index >= fullResponse.length) {
 
-        });
+          clearInterval(
+            streamRef.current
+          );
 
-        if (i >= fakeResponse.length) {
-
-          clearInterval(streamRef.current);
           streamRef.current = null;
 
           setIsStreaming(false);
@@ -1008,28 +1054,70 @@ function App() {
           const completedConversation = {
             ...currentConversation,
 
-            messages: currentConversation.messages.map(
-              (message) =>
-                message.id === assistantMessage.id
-                  ? {
-                    ...message,
-                    content: fakeResponse,
-                  }
-                  : message
-            ),
+            messages:
+              currentConversation.messages.map(
+                (message) =>
+                  message.id === assistantMessage.id
+                    ? {
+                      ...message,
+                      content: fullResponse,
+                    }
+                    : message
+              ),
 
             updatedAt: Date.now(),
           };
 
-          setConversation(completedConversation);
+          setConversation(
+            completedConversation
+          );
 
-          persistConversation(completedConversation);
+          persistConversation(
+            completedConversation
+          );
 
         }
 
       }, 18);
 
-    }, 3000);
+    } catch (error) {
+
+      aiAbortControllerRef.current = null;
+
+      if (error.name === "AbortError") {
+
+        setIsThinking(false);
+        setIsStreaming(false);
+
+        return;
+      }
+
+      console.error(
+        "AI request failed:",
+        error
+      );
+
+      setIsThinking(false);
+      setIsStreaming(false);
+
+      setConversation((current) => ({
+        ...current,
+
+        messages: current.messages.map(
+          (message) =>
+            message.id === assistantMessage.id
+              ? {
+                ...message,
+                content:
+                  "Sorry, I couldn't get a response right now.",
+              }
+              : message
+        ),
+
+        updatedAt: Date.now(),
+      }));
+
+    }
   };
 
   const toggleSection = (section) => {
