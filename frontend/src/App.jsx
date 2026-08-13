@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   ArrowRight,
+  ArrowLeft,
   Mic,
   Plus,
   Pause,
@@ -18,6 +19,7 @@ import {
   ChevronUp,
   SquarePen,
   Square,
+  Minus,
 } from "lucide-react";
 
 import "./styles/globals.css";
@@ -25,6 +27,13 @@ import "./styles/home.css";
 
 import orb from "./assets/orb2.gif";
 import record from "./assets/record.png";
+
+import {
+  getConversations,
+  createConversation as createConversationAPI,
+  updateConversation,
+  deleteConversation,
+} from "./api/conversations";
 
 function App() {
   const [prompt, setPrompt] = useState("");
@@ -36,6 +45,8 @@ function App() {
 
   const desktopResponseBodyRef = useRef(null);
   const mobileResponseBodyRef = useRef(null);
+
+  const conversationRef = useRef(null);
 
   const desktopShouldAutoScrollRef = useRef(true);
   const mobileShouldAutoScrollRef = useRef(true);
@@ -86,6 +97,9 @@ function App() {
   const [editingConversationId, setEditingConversationId] = useState(null);
   const [editingConversationTitle, setEditingConversationTitle] = useState("");
 
+  // delete conversation
+  const [conversationToDelete, setConversationToDelete] = useState(null);
+
   // edit knowledge docs
   const [editingKnowledgeId, setEditingKnowledgeId] = useState(null);
   const [editingKnowledgeName, setEditingKnowledgeName] = useState("");
@@ -131,6 +145,8 @@ function App() {
 
   const [showResponse, setShowResponse] = useState(false);
 
+  const [isResponseMinimized, setIsResponseMinimized] = useState(false);
+
   const [isThinking, setIsThinking] = useState(false);
 
   // toast
@@ -159,6 +175,136 @@ function App() {
     updatedAt: Date.now(),
   });
 
+  const createNewConversation = () => {
+
+    const newConversation = createConversation();
+
+    setConversation(newConversation);
+    setShowResponse(true);
+    setIsResponseMinimized(false);
+
+    setPersonality({
+      ...defaultPersonality,
+    });
+
+    setPersonalityDraft({
+      ...defaultPersonality,
+    });
+
+    setMemory({
+      ...defaultMemory,
+      memories: [],
+    });
+
+    setContext({
+      ...defaultContext,
+    });
+
+    return newConversation;
+
+  };
+
+  const endConversation = () => {
+
+    stopStreaming();
+
+    const newConversation = createConversation();
+
+    setConversation(newConversation);
+
+    setPrompt("");
+    setSavedDraft("");
+    setIsRecording(false);
+    setIsPaused(false);
+
+    setShowResponse(false);
+    setIsResponseMinimized(false);
+
+    setPersonality({
+      ...defaultPersonality,
+    });
+
+    setPersonalityDraft({
+      ...defaultPersonality,
+    });
+
+    setMemory({
+      ...defaultMemory,
+      memories: [],
+    });
+
+    setContext({
+      ...defaultContext,
+    });
+
+    setOpenSection(null);
+  };
+
+  const handleNewChat = () => {
+
+    stopStreaming();
+
+    setPrompt("");
+    setSavedDraft("");
+    setIsRecording(false);
+    setIsPaused(false);
+
+    setOpenSection(null);
+    setShowPanel(false);
+
+    createNewConversation();
+
+    inputRef.current?.focus();
+
+  };
+
+  // helper
+  const persistConversation = async (conversationToSave) => {
+
+    const {
+      id,
+      _id,
+      ...conversationData
+    } = conversationToSave;
+
+    try {
+
+      if (_id) {
+
+        const updatedConversation =
+          await updateConversation(
+            _id,
+            conversationData
+          );
+
+        setConversation(updatedConversation);
+
+        return updatedConversation;
+
+      }
+
+      const savedConversation =
+        await createConversationAPI(
+          conversationData
+        );
+
+      setConversation(savedConversation);
+
+      return savedConversation;
+
+    } catch (error) {
+
+      console.error(
+        "Failed to persist conversation:",
+        error
+      );
+
+      return null;
+
+    }
+
+  };
+
   const createConversationTitle = (text) => {
 
     const cleanText = text.trim();
@@ -173,25 +319,28 @@ function App() {
 
   // restore memory & personality when switching conversations
   const switchConversation = (selectedConversation) => {
+    const selectedMemory = selectedConversation.memory || defaultMemory;
 
     setConversation(selectedConversation);
 
     setPersonality({
-      ...selectedConversation.personality,
+      ...defaultPersonality,
+      ...(selectedConversation.personality || {}),
     });
 
     setPersonalityDraft({
-      ...selectedConversation.personality,
+      ...defaultPersonality,
+      ...(selectedConversation.personality || {}),
     });
 
     setMemory({
-      ...selectedConversation.memory,
+      ...defaultMemory,
+      ...selectedMemory,
       memories: [
-        ...selectedConversation.memory.memories,
+        ...(selectedMemory.memories || []),
       ],
     });
 
-    // defensive 
     setContext({
       ...defaultContext,
       ...(selectedConversation.context || {}),
@@ -202,7 +351,7 @@ function App() {
     setMemoryInput("");
 
     setShowResponse(true);
-
+    setIsResponseMinimized(false);
   };
 
   // personality
@@ -518,6 +667,64 @@ function App() {
 
   };
 
+  // delete handler
+  const handleDeleteConversation = async () => {
+    if (!conversationToDelete) return;
+
+    try {
+      await deleteConversation(conversationToDelete._id);
+
+      setConversationHistory((currentHistory) =>
+        currentHistory.filter(
+          (item) => item._id !== conversationToDelete._id
+        )
+      );
+
+      if (conversation._id === conversationToDelete._id) {
+        stopStreaming();
+
+        const newConversation = createConversation();
+
+        setConversation(newConversation);
+        setPrompt("");
+        setSavedDraft("");
+        setIsRecording(false);
+        setIsPaused(false);
+        setShowResponse(false);
+        setIsResponseMinimized(false);
+
+        setPersonality({
+          ...defaultPersonality,
+        });
+
+        setPersonalityDraft({
+          ...defaultPersonality,
+        });
+
+        setMemory({
+          ...defaultMemory,
+          memories: [],
+        });
+
+        setContext({
+          ...defaultContext,
+        });
+
+        setOpenSection(null);
+      }
+
+      setConversationToDelete(null);
+
+      showToast("Conversation deleted");
+    } catch (error) {
+      console.error("Failed to delete conversation:", error);
+
+      setConversationToDelete(null);
+
+      showToast("Failed to delete conversation");
+    }
+  };
+
   // save knowledge edit helper
   const saveKnowledgeName = (documentId) => {
 
@@ -648,8 +855,10 @@ function App() {
   };
 
   // handle submit onclick (arrow) send
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    setShowPanel(false);
 
     if (isRecording) {
       setPrompt(savedDraft);
@@ -658,7 +867,6 @@ function App() {
       setIsPaused(false);
 
       setShowResponse(true);
-
 
       inputRef.current?.focus();
       return;
@@ -683,6 +891,7 @@ function App() {
 
     setPrompt("");
     setShowResponse(true);
+    setIsResponseMinimized(false);
 
     setIsThinking(true);
 
@@ -703,40 +912,53 @@ function App() {
     desktopShouldAutoScrollRef.current = true;
     mobileShouldAutoScrollRef.current = true;
 
-    setConversation((current) => ({
-      ...current,
+    const updatedConversation = {
+      ...conversation,
 
       title:
-        current.messages.length === 0
+        conversation.messages.length === 0
           ? createConversationTitle(userPrompt)
-          : current.title,
+          : conversation.title,
 
       messages: [
-        ...current.messages,
+        ...conversation.messages,
         userMessage,
         assistantMessage,
       ],
 
       updatedAt: Date.now(),
-    }));
+    };
 
-    // store extracted memory
+    setConversation(updatedConversation);
+
+    // Store extracted memory locally
     if (
       memory.enabled &&
       memoryCandidate &&
       !memory.memories.includes(memoryCandidate)
     ) {
+      setMemory((current) => {
+        const updatedMemory = {
+          ...current,
+          memories: [
+            ...current.memories,
+            memoryCandidate,
+          ],
+        };
 
-      setMemory((current) => ({
-        ...current,
+        setConversation((currentConversation) => ({
+          ...currentConversation,
+          memory: {
+            ...updatedMemory,
+            memories: [
+              ...updatedMemory.memories,
+            ],
+          },
+          updatedAt: Date.now(),
+        }));
 
-        memories: [
-          ...current.memories,
-          memoryCandidate,
-        ],
-
-      }));
-
+        return updatedMemory;
+      });
     }
 
     thinkingTimeoutRef.current = setTimeout(() => {
@@ -752,20 +974,26 @@ function App() {
 
         i++;
 
-        setConversation((current) => ({
-          ...current,
+        setConversation((current) => {
 
-          messages: current.messages.map((message) =>
-            message.id === assistantMessage.id
-              ? {
-                ...message,
-                content: fakeResponse.slice(0, i),
-              }
-              : message
-          ),
+          const updatedConversation = {
+            ...current,
 
-          updatedAt: Date.now(),
-        }));
+            messages: current.messages.map((message) =>
+              message.id === assistantMessage.id
+                ? {
+                  ...message,
+                  content: fakeResponse.slice(0, i),
+                }
+                : message
+            ),
+
+            updatedAt: Date.now(),
+          };
+
+          return updatedConversation;
+
+        });
 
         if (i >= fakeResponse.length) {
 
@@ -773,6 +1001,29 @@ function App() {
           streamRef.current = null;
 
           setIsStreaming(false);
+
+          const currentConversation =
+            conversationRef.current;
+
+          const completedConversation = {
+            ...currentConversation,
+
+            messages: currentConversation.messages.map(
+              (message) =>
+                message.id === assistantMessage.id
+                  ? {
+                    ...message,
+                    content: fakeResponse,
+                  }
+                  : message
+            ),
+
+            updatedAt: Date.now(),
+          };
+
+          setConversation(completedConversation);
+
+          persistConversation(completedConversation);
 
         }
 
@@ -843,10 +1094,18 @@ function App() {
 
   }, [conversation.messages, isThinking]);
 
-  // conversation history 
+  useEffect(() => {
+    conversationRef.current = conversation;
+  }, [conversation]);
+
+  // conversation history
   useEffect(() => {
 
-    if (conversation.messages.length === 0) {
+    // Unsaved conversations do not belong in history.
+    if (
+      !conversation._id ||
+      conversation.messages.length === 0
+    ) {
       return;
     }
 
@@ -867,13 +1126,39 @@ function App() {
       }
 
       return [
-        ...currentHistory,
         conversation,
+        ...currentHistory,
       ];
 
     });
 
   }, [conversation]);
+
+  // db persistence 
+  useEffect(() => {
+
+    const loadConversations = async () => {
+
+      try {
+
+        const conversations = await getConversations();
+
+        setConversationHistory(conversations);
+
+      } catch (error) {
+
+        console.error(
+          "Failed to load conversations:",
+          error
+        );
+
+      }
+
+    };
+
+    loadConversations();
+
+  }, []);
 
   return (
     <main className="app">
@@ -890,6 +1175,29 @@ function App() {
       <div className={`sidePanel ${showPanel ? "open" : ""}`}>
 
         <div className="panelMenu">
+
+          <div className="panelGroup">
+
+            <button
+              type="button"
+              className="panelItem"
+              onClick={handleNewChat}
+            >
+
+              <div className="panelLeft">
+
+                <SquarePen
+                  size={16}
+                  strokeWidth={1}
+                />
+
+                <span>New Chat</span>
+
+              </div>
+
+            </button>
+
+          </div>
 
           <div className="historyTitle">
             Tools
@@ -2399,21 +2707,39 @@ function App() {
 
                   ) : (
 
-                    <button
-                      type="button"
-                      className="historyTitleButton"
-                      onClick={() => {
-                        switchConversation(item);
-                      }}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
+                    <div className="historyItemContent">
 
-                        setEditingConversationId(item.id);
-                        setEditingConversationTitle(item.title);
-                      }}
-                    >
-                      {item.title}
-                    </button>
+                      <button
+                        type="button"
+                        className="historyTitleButton"
+                        onClick={() => {
+                          switchConversation(item);
+                        }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+
+                          setEditingConversationId(item.id);
+                          setEditingConversationTitle(item.title);
+                        }}
+                      >
+                        {item.title}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="memoryRemove"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConversationToDelete(item);
+                        }}
+                      >
+                        <X
+                          size={13}
+                          strokeWidth={1.5}
+                        />
+                      </button>
+
+                    </div>
 
                   )}
 
@@ -2428,7 +2754,15 @@ function App() {
         </div>
       </div>
 
-      <div className={`workspace ${showResponse ? "responseOpen" : ""}`}>
+      <div
+        className={`workspace ${showResponse && !isResponseMinimized
+          ? "responseOpen"
+          : ""
+          } ${showResponse && isResponseMinimized
+            ? "responseMinimized"
+            : ""
+          }`}
+      >
 
         <section className="hero">
           <img
@@ -2472,6 +2806,7 @@ function App() {
               placeholder=""
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
+              onFocus={() => setShowPanel(false)}
             />
 
             {!isRecording ? (
@@ -2564,7 +2899,7 @@ function App() {
                   setIsRecording(false);
                   setIsPaused(false);
 
-                  setConversation(createConversation());
+                  createNewConversation();
 
                   inputRef.current?.focus();
 
@@ -2579,7 +2914,19 @@ function App() {
 
               <button
                 className="responseIconButton"
-                onClick={() => setShowResponse(false)}
+                onClick={() => {
+                  setIsResponseMinimized(true);
+                }}
+              >
+                <Minus
+                  size={16}
+                  strokeWidth={1}
+                />
+              </button>
+
+              <button
+                className="responseIconButton"
+                onClick={endConversation}
               >
                 <X
                   size={16}
@@ -2628,6 +2975,23 @@ function App() {
           </section>
         )}
 
+        {/* minimise desktop */}
+        {!isMobile && isResponseMinimized && (
+          <button
+            type="button"
+            className="responseReopenButton"
+            onClick={() => {
+              setIsResponseMinimized(false);
+              inputRef.current?.focus();
+            }}
+          >
+            <ArrowLeft
+              size={17}
+              strokeWidth={1}
+            />
+          </button>
+        )}
+
         {/* mobile panel */}
         {isMobile && (
 
@@ -2643,7 +3007,7 @@ function App() {
                   setIsRecording(false);
                   setIsPaused(false);
 
-                  setConversation(createConversation());
+                  createNewConversation();
 
                   inputRef.current?.focus();
                 }}
@@ -2656,7 +3020,19 @@ function App() {
 
               <button
                 className="responseIconButton"
-                onClick={() => setShowResponse(false)}
+                onClick={() => {
+                  setIsResponseMinimized(true);
+                }}
+              >
+                <Minus
+                  size={16}
+                  strokeWidth={1}
+                />
+              </button>
+
+              <button
+                className="responseIconButton"
+                onClick={endConversation}
               >
                 <X
                   size={16}
@@ -2707,6 +3083,53 @@ function App() {
         )}
 
       </div>
+
+      {/* delete conversation modal */}
+      {conversationToDelete && (
+
+        <div
+          className="deleteModalOverlay"
+          onClick={() => setConversationToDelete(null)}
+        >
+
+          <div
+            className="deleteModal"
+            onClick={(e) => e.stopPropagation()}
+          >
+
+            <div className="deleteModalTitle">
+              Delete conversation?
+            </div>
+
+            <div className="deleteModalDescription">
+              This conversation will be permanently deleted.
+            </div>
+
+            <div className="deleteModalActions">
+
+              <button
+                type="button"
+                className="deleteModalCancel"
+                onClick={() => setConversationToDelete(null)}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                className="deleteModalConfirm"
+                onClick={handleDeleteConversation}
+              >
+                Delete
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
 
       {/* toast */}
       {toast && (
