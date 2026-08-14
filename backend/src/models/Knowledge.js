@@ -1,5 +1,27 @@
 import mongoose from "mongoose";
 
+const chunkSchema = new mongoose.Schema(
+    {
+        index: {
+            type: Number,
+            required: true,
+        },
+
+        content: {
+            type: String,
+            required: true,
+        },
+
+        embedding: {
+            type: [Number],
+            default: [],
+        },
+    },
+    {
+        _id: false,
+    }
+);
+
 const knowledgeSchema = new mongoose.Schema(
     {
         name: {
@@ -21,6 +43,11 @@ const knowledgeSchema = new mongoose.Schema(
         size: {
             type: Number,
             default: 0,
+        },
+
+        chunks: {
+            type: [chunkSchema],
+            default: [],
         },
     },
     {

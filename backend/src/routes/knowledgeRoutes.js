@@ -6,6 +6,7 @@ import {
     updateKnowledge,
     deleteKnowledge,
     uploadKnowledge,
+    searchKnowledgeController
 } from "../controllers/knowledgeController.js";
 
 const router = express.Router();
@@ -13,6 +14,11 @@ const router = express.Router();
 router.get(
     "/",
     getKnowledge
+);
+
+router.post(
+    "/search",
+    searchKnowledgeController
 );
 
 router.post(

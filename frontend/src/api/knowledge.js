@@ -135,3 +135,38 @@ export const uploadKnowledge = async (file) => {
 
     return response.json();
 };
+
+export const searchKnowledge = async (
+    query,
+    limit = 5
+) => {
+
+    const response = await fetch(
+        `${API_URL}/search`,
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify({
+                query,
+                limit,
+            }),
+        }
+    );
+
+    if (!response.ok) {
+
+        const error =
+            await response.json().catch(() => ({}));
+
+        throw new Error(
+            error.message ||
+            "Failed to search knowledge."
+        );
+    }
+
+    return response.json();
+};
