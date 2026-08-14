@@ -35,6 +35,13 @@ import {
   deleteConversation,
 } from "./api/conversations";
 
+import {
+  getMemories,
+  createMemory,
+  updateMemory,
+  deleteMemory,
+} from "./api/memories";
+
 import { sendAIRequest } from "./api/ai";
 
 function App() {
@@ -84,6 +91,7 @@ function App() {
   const defaultMemory = {
     enabled: true,
     memories: [],
+    memoryIds: [],
   };
 
   const [memory, setMemory] = useState(
@@ -169,6 +177,7 @@ function App() {
     memory: {
       ...conversationMemory,
       memories: [...conversationMemory.memories],
+      memoryIds: [...(conversationMemory.memoryIds || [])],
     },
     context: {
       ...conversationContext,
@@ -191,11 +200,6 @@ function App() {
 
     setPersonalityDraft({
       ...defaultPersonality,
-    });
-
-    setMemory({
-      ...defaultMemory,
-      memories: [],
     });
 
     setContext({
@@ -228,11 +232,6 @@ function App() {
 
     setPersonalityDraft({
       ...defaultPersonality,
-    });
-
-    setMemory({
-      ...defaultMemory,
-      memories: [],
     });
 
     setContext({
@@ -321,7 +320,6 @@ function App() {
 
   // restore memory & personality when switching conversations
   const switchConversation = (selectedConversation) => {
-    const selectedMemory = selectedConversation.memory || defaultMemory;
 
     setConversation(selectedConversation);
 
@@ -333,14 +331,6 @@ function App() {
     setPersonalityDraft({
       ...defaultPersonality,
       ...(selectedConversation.personality || {}),
-    });
-
-    setMemory({
-      ...defaultMemory,
-      ...selectedMemory,
-      memories: [
-        ...(selectedMemory.memories || []),
-      ],
     });
 
     setContext({
@@ -563,45 +553,155 @@ function App() {
 
   // memory extraction
   const extractMemory = (userPrompt) => {
-
     const text = userPrompt.trim();
 
     if (!text) {
-      return null;
+      return [];
     }
 
-    // add pattern girl/boy friend's name is
     const patterns = [
+      // Identity
       {
-        regex: /^my name is (.+)$/i,
+        regex: /\bmy name is\s+(.+?)(?:[.!?]|$)/i,
         format: (match) => `User's name is ${match[1].trim()}.`,
       },
       {
-        regex: /^i(?:'m| am) (?:a |an )?(.+)$/i,
+        regex: /\bcall me\s+(.+?)(?:[.!?]|$)/i,
+        format: (match) => `User prefers to be called ${match[1].trim()}.`,
+      },
+
+      // Personal information
+      {
+        regex: /\bi am\s+(\d{1,3})\s*(?:years old|yo)\b/i,
+        format: (match) => `User is ${match[1].trim()} years old.`,
+      },
+      {
+        regex: /\bi(?:'m| am)\s+(?:a|an)\s+(.+?)(?:[.!?]|$)/i,
         format: (match) => `User is ${match[1].trim()}.`,
       },
       {
-        regex: /^i (?:like|love|prefer) (.+)$/i,
+        regex: /\bi live in\s+(.+?)(?:[.!?]|$)/i,
+        format: (match) => `User lives in ${match[1].trim()}.`,
+      },
+      {
+        regex: /\bi(?:'m| am)\s+from\s+(.+?)(?:[.!?]|$)/i,
+        format: (match) => `User is from ${match[1].trim()}.`,
+      },
+
+      // Preferences
+      {
+        regex: /\bi (?:like|love|enjoy)\s+(.+?)(?=\s+and\s+i\s+(?:like|love|enjoy|prefer)|[.!?]|$)/gi,
         format: (match) => `User likes ${match[1].trim()}.`,
       },
       {
-        regex: /^i work (?:as|at) (.+)$/i,
+        regex: /\bi (?:don't like|do not like|hate|dislike)\s+(.+?)(?=\s+and\s+i\s+(?:like|love|enjoy|prefer)|[.!?]|$)/gi,
+        format: (match) => `User dislikes ${match[1].trim()}.`,
+      },
+      {
+        regex: /\bi prefer\s+(.+?)(?=\s+and\s+i\s+(?:like|love|enjoy|prefer)|[.!?]|$)/gi,
+        format: (match) => `User prefers ${match[1].trim()}.`,
+      },
+      {
+        regex: /\bmy favorite\s+(.+?)\s+is\s+(.+?)(?:[.!?]|$)/i,
+        format: (match) =>
+          `User's favorite ${match[1].trim()} is ${match[2].trim()}.`,
+      },
+
+      // Work / education
+      {
+        regex: /\bi work\s+(?:as|at)\s+(.+?)(?:[.!?]|$)/i,
         format: (match) => `User works ${match[1].trim()}.`,
+      },
+      {
+        regex: /\bi work in\s+(.+?)(?:[.!?]|$)/i,
+        format: (match) => `User works in ${match[1].trim()}.`,
+      },
+      {
+        regex: /\bi(?:'m| am)\s+studying\s+(.+?)(?:[.!?]|$)/i,
+        format: (match) => `User is studying ${match[1].trim()}.`,
+      },
+
+      // Skills / technologies
+      {
+        regex: /\bi (?:know|use|work with)\s+(.+?)(?:[.!?]|$)/i,
+        format: (match) => `User knows or works with ${match[1].trim()}.`,
+      },
+      {
+        regex: /\bi(?:'m| am)\s+(?:learning|working with)\s+(.+?)(?:[.!?]|$)/i,
+        format: (match) =>
+          `User is learning or working with ${match[1].trim()}.`,
+      },
+
+      // Goals
+      {
+        regex: /\bi(?:'m| am)\s+(?:trying|working)\s+to\s+(.+?)(?:[.!?]|$)/i,
+        format: (match) => `User is trying to ${match[1].trim()}.`,
+      },
+      {
+        regex: /\bi want\s+to\s+(.+?)(?:[.!?]|$)/i,
+        format: (match) => `User wants to ${match[1].trim()}.`,
+      },
+      {
+        regex: /\bmy goal is\s+to\s+(.+?)(?:[.!?]|$)/i,
+        format: (match) => `User's goal is to ${match[1].trim()}.`,
+      },
+
+      // Assistant preferences
+      {
+        regex: /\bi prefer\s+(?:you to|that you)\s+(.+?)(?:[.!?]|$)/i,
+        format: (match) =>
+          `User prefers the assistant to ${match[1].trim()}.`,
       },
     ];
 
+    const extractedMemories = [];
+
     for (const pattern of patterns) {
 
-      const match = text.match(pattern.regex);
+      if (pattern.regex.global) {
 
-      if (match) {
-        return pattern.format(match);
+        const matches = [
+          ...text.matchAll(pattern.regex),
+        ];
+
+        for (const match of matches) {
+
+          const memory =
+            pattern.format(match);
+
+          if (
+            memory &&
+            !extractedMemories.includes(memory)
+          ) {
+            extractedMemories.push(memory);
+          }
+
+        }
+
+      } else {
+
+        const match =
+          text.match(pattern.regex);
+
+        if (!match) {
+          continue;
+        }
+
+        const memory =
+          pattern.format(match);
+
+        if (
+          memory &&
+          !extractedMemories.includes(memory)
+        ) {
+          extractedMemories.push(memory);
+        }
+
       }
 
     }
 
-    return null;
-
+    return extractedMemories;
   };
 
   //
@@ -891,7 +991,7 @@ function App() {
 
     const userPrompt = prompt.trim();
 
-    const memoryCandidate = extractMemory(userPrompt);
+    const memoryCandidates = extractMemory(userPrompt);
 
     const retrievedKnowledge = retrieveKnowledge(userPrompt);
 
@@ -953,40 +1053,81 @@ function App() {
 
     setConversation(updatedConversation);
 
-    // Store extracted memory locally
+    // Persist extracted memories
     if (
       memory.enabled &&
-      memoryCandidate &&
-      !memory.memories.includes(memoryCandidate)
+      memoryCandidates.length > 0
     ) {
-      setMemory((current) => {
+      try {
 
-        const updatedMemory = {
-          ...current,
+        const newMemoryCandidates =
+          memoryCandidates.filter(
+            (candidate) =>
+              !memory.memories.includes(candidate)
+          );
 
-          memories: [
-            ...current.memories,
-            memoryCandidate,
-          ],
-        };
+        if (newMemoryCandidates.length > 0) {
 
-        setConversation((currentConversation) => ({
-          ...currentConversation,
+          const createdMemories =
+            await Promise.all(
+              newMemoryCandidates.map(
+                (candidate) =>
+                  createMemory(candidate)
+              )
+            );
 
-          memory: {
-            ...updatedMemory,
+          setMemory((current) => {
 
-            memories: [
-              ...updatedMemory.memories,
-            ],
-          },
+            const updatedMemory = {
+              ...current,
 
-          updatedAt: Date.now(),
-        }));
+              memories: [
+                ...current.memories,
+                ...createdMemories.map(
+                  (item) => item.content
+                ),
+              ],
 
-        return updatedMemory;
+              memoryIds: [
+                ...current.memoryIds,
+                ...createdMemories.map(
+                  (item) => item._id
+                ),
+              ],
+            };
 
-      });
+            setConversation((conversation) => ({
+              ...conversation,
+
+              memory: {
+                ...updatedMemory,
+
+                memories: [
+                  ...updatedMemory.memories,
+                ],
+              },
+
+              updatedAt: Date.now(),
+            }));
+
+            return updatedMemory;
+
+          });
+
+        }
+
+      } catch (error) {
+
+        console.error(
+          "Failed to persist extracted memories:",
+          error
+        );
+
+        showToast(
+          "Failed to save extracted memory"
+        );
+
+      }
     }
 
     try {
@@ -1245,6 +1386,41 @@ function App() {
     };
 
     loadConversations();
+
+  }, []);
+
+  useEffect(() => {
+
+    const loadMemories = async () => {
+
+      try {
+
+        const memories = await getMemories();
+
+        setMemory((current) => ({
+          ...current,
+
+          memories: memories.map(
+            (memory) => memory.content
+          ),
+
+          memoryIds: memories.map(
+            (memory) => memory._id
+          ),
+        }));
+
+      } catch (error) {
+
+        console.error(
+          "Failed to load memories:",
+          error
+        );
+
+      }
+
+    };
+
+    loadMemories();
 
   }, []);
 
@@ -1553,73 +1729,129 @@ function App() {
                     value={memoryInput}
                     onChange={(e) => setMemoryInput(e.target.value)}
                     placeholder="Add a memory..."
-                    onKeyDown={(e) => {
+                    onKeyDown={async (e) => {
+
                       if (e.key !== "Enter") return;
 
                       const value = memoryInput.trim();
 
                       if (!value) return;
 
-                      setMemory((current) => {
+                      try {
 
-                        const updatedMemory = {
-                          ...current,
-                          memories: [
-                            ...current.memories,
-                            value,
-                          ],
-                        };
+                        const createdMemory =
+                          await createMemory(value);
 
-                        setConversation((conversation) => ({
-                          ...conversation,
-                          memory: {
-                            ...updatedMemory,
-                            memories: [...updatedMemory.memories],
-                          },
-                          updatedAt: Date.now(),
-                        }));
+                        setMemory((current) => {
 
-                        return updatedMemory;
+                          const updatedMemory = {
+                            ...current,
 
-                      });
+                            memories: [
+                              ...current.memories,
+                              createdMemory.content,
+                            ],
 
-                      setMemoryInput("");
+                            memoryIds: [
+                              ...current.memoryIds,
+                              createdMemory._id,
+                            ],
+                          };
+
+                          setConversation((conversation) => ({
+                            ...conversation,
+
+                            memory: {
+                              ...updatedMemory,
+
+                              memories: [
+                                ...updatedMemory.memories,
+                              ],
+                            },
+
+                            updatedAt: Date.now(),
+                          }));
+
+                          return updatedMemory;
+
+                        });
+
+                        setMemoryInput("");
+
+                      } catch (error) {
+
+                        console.error(
+                          "Failed to create memory:",
+                          error
+                        );
+
+                        showToast("Failed to save memory");
+
+                      }
+
                     }}
                   />
 
                   <button
                     type="button"
                     className="memoryAddButton"
-                    onClick={() => {
+                    onClick={async () => {
 
                       const value = memoryInput.trim();
 
                       if (!value) return;
 
-                      setMemory((current) => {
+                      try {
 
-                        const updatedMemory = {
-                          ...current,
-                          memories: [
-                            ...current.memories,
-                            value,
-                          ],
-                        };
+                        const createdMemory =
+                          await createMemory(value);
 
-                        setConversation((conversation) => ({
-                          ...conversation,
-                          memory: {
-                            ...updatedMemory,
-                            memories: [...updatedMemory.memories],
-                          },
-                          updatedAt: Date.now(),
-                        }));
+                        setMemory((current) => {
 
-                        return updatedMemory;
+                          const updatedMemory = {
+                            ...current,
 
-                      });
+                            memories: [
+                              ...current.memories,
+                              createdMemory.content,
+                            ],
 
-                      setMemoryInput("");
+                            memoryIds: [
+                              ...current.memoryIds,
+                              createdMemory._id,
+                            ],
+                          };
+
+                          setConversation((conversation) => ({
+                            ...conversation,
+
+                            memory: {
+                              ...updatedMemory,
+
+                              memories: [
+                                ...updatedMemory.memories,
+                              ],
+                            },
+
+                            updatedAt: Date.now(),
+                          }));
+
+                          return updatedMemory;
+
+                        });
+
+                        setMemoryInput("");
+
+                      } catch (error) {
+
+                        console.error(
+                          "Failed to create memory:",
+                          error
+                        );
+
+                        showToast("Failed to save memory");
+
+                      }
 
                     }}
                   >
@@ -1655,7 +1887,7 @@ function App() {
                               onChange={(e) =>
                                 setEditingMemoryValue(e.target.value)
                               }
-                              onKeyDown={(e) => {
+                              onKeyDown={async (e) => {
 
                                 if (e.key !== "Enter") return;
 
@@ -1663,33 +1895,66 @@ function App() {
 
                                 if (!value) return;
 
-                                setMemory((current) => {
+                                const memoryId =
+                                  memory.memoryIds[index];
 
-                                  const updatedMemory = {
-                                    ...current,
-                                    memories: current.memories.map(
-                                      (memoryItem, memoryIndex) =>
-                                        memoryIndex === index
-                                          ? value
-                                          : memoryItem
-                                    ),
-                                  };
+                                if (!memoryId) {
+                                  showToast("Memory could not be updated");
+                                  return;
+                                }
 
-                                  setConversation((conversation) => ({
-                                    ...conversation,
-                                    memory: {
-                                      ...updatedMemory,
-                                      memories: [...updatedMemory.memories],
-                                    },
-                                    updatedAt: Date.now(),
-                                  }));
+                                try {
 
-                                  return updatedMemory;
+                                  const updatedMemory =
+                                    await updateMemory(
+                                      memoryId,
+                                      value
+                                    );
 
-                                });
+                                  setMemory((current) => {
 
-                                setEditingMemoryIndex(null);
-                                setEditingMemoryValue("");
+                                    const updatedMemoryState = {
+                                      ...current,
+
+                                      memories: current.memories.map(
+                                        (memoryItem, memoryIndex) =>
+                                          memoryIndex === index
+                                            ? updatedMemory.content
+                                            : memoryItem
+                                      ),
+                                    };
+
+                                    setConversation((conversation) => ({
+                                      ...conversation,
+
+                                      memory: {
+                                        ...updatedMemoryState,
+
+                                        memories: [
+                                          ...updatedMemoryState.memories,
+                                        ],
+                                      },
+
+                                      updatedAt: Date.now(),
+                                    }));
+
+                                    return updatedMemoryState;
+
+                                  });
+
+                                  setEditingMemoryIndex(null);
+                                  setEditingMemoryValue("");
+
+                                } catch (error) {
+
+                                  console.error(
+                                    "Failed to update memory:",
+                                    error
+                                  );
+
+                                  showToast("Failed to update memory");
+
+                                }
 
                               }}
                             />
@@ -1712,30 +1977,66 @@ function App() {
                           <button
                             type="button"
                             className="memoryRemove"
-                            onClick={() => {
+                            onClick={async () => {
 
-                              setMemory((current) => {
+                              const memoryId =
+                                memory.memoryIds[index];
 
-                                const updatedMemory = {
-                                  ...current,
-                                  memories: current.memories.filter(
-                                    (_, memoryIndex) =>
-                                      memoryIndex !== index
-                                  ),
-                                };
+                              if (!memoryId) {
+                                showToast("Memory could not be deleted");
+                                return;
+                              }
 
-                                setConversation((conversation) => ({
-                                  ...conversation,
-                                  memory: {
-                                    ...updatedMemory,
-                                    memories: [...updatedMemory.memories],
-                                  },
-                                  updatedAt: Date.now(),
-                                }));
+                              try {
 
-                                return updatedMemory;
+                                await deleteMemory(memoryId);
 
-                              });
+                                setMemory((current) => {
+
+                                  const updatedMemory = {
+                                    ...current,
+
+                                    memories: current.memories.filter(
+                                      (_, memoryIndex) =>
+                                        memoryIndex !== index
+                                    ),
+
+                                    memoryIds: current.memoryIds.filter(
+                                      (_, memoryIndex) =>
+                                        memoryIndex !== index
+                                    ),
+                                  };
+
+                                  setConversation((conversation) => ({
+                                    ...conversation,
+
+                                    memory: {
+                                      ...updatedMemory,
+
+                                      memories: [
+                                        ...updatedMemory.memories,
+                                      ],
+                                    },
+
+                                    updatedAt: Date.now(),
+                                  }));
+
+                                  return updatedMemory;
+
+                                });
+
+                                showToast("Memory deleted");
+
+                              } catch (error) {
+
+                                console.error(
+                                  "Failed to delete memory:",
+                                  error
+                                );
+
+                                showToast("Failed to delete memory");
+
+                              }
 
                             }}
                           >
