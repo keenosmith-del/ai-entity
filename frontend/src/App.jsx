@@ -44,6 +44,14 @@ import {
 
 import { sendAIRequest } from "./api/ai";
 
+import {
+  getKnowledge,
+  createKnowledge,
+  updateKnowledge,
+  deleteKnowledge,
+  uploadKnowledge,
+} from "./api/knowledge";
+
 function App() {
   const [prompt, setPrompt] = useState("");
 
@@ -51,6 +59,8 @@ function App() {
   const [isPaused, setIsPaused] = useState(false);
 
   const inputRef = useRef(null);
+
+  const knowledgeFileInputRef = useRef(null);
 
   const desktopResponseBodyRef = useRef(null);
   const mobileResponseBodyRef = useRef(null);
@@ -828,51 +838,102 @@ function App() {
   };
 
   // save knowledge edit helper
-  const saveKnowledgeName = (documentId) => {
+  const saveKnowledgeName = async (documentId) => {
 
     const name = editingKnowledgeName.trim();
 
     if (!name) return;
 
-    setKnowledge((current) => ({
-      ...current,
+    try {
 
-      documents: current.documents.map((document) =>
-        document.id === documentId
-          ? {
-            ...document,
+      const updatedDocument =
+        await updateKnowledge(
+          documentId,
+          {
             name,
           }
-          : document
-      ),
-    }));
+        );
 
-    setEditingKnowledgeId(null);
-    setEditingKnowledgeName("");
+      setKnowledge((current) => ({
+        ...current,
 
-    showToast("Document renamed");
+        documents: current.documents.map(
+          (document) =>
+            document.id === documentId
+              ? {
+                ...document,
+                name: updatedDocument.name,
+              }
+              : document
+        ),
+      }));
+
+      setEditingKnowledgeId(null);
+      setEditingKnowledgeName("");
+
+      showToast("Document renamed");
+
+    } catch (error) {
+
+      console.error(
+        "Failed to rename knowledge document:",
+        error
+      );
+
+      showToast(
+        error.message ||
+        "Failed to rename document"
+      );
+
+    }
 
   };
 
-  const saveKnowledgeContent = (documentId) => {
+  const saveKnowledgeContent = async (documentId) => {
 
-    setKnowledge((current) => ({
-      ...current,
+    try {
 
-      documents: current.documents.map((document) =>
-        document.id === documentId
-          ? {
-            ...document,
+      const updatedDocument =
+        await updateKnowledge(
+          documentId,
+          {
             content: editingKnowledgeContent,
           }
-          : document
-      ),
-    }));
+        );
 
-    setEditingKnowledgeContentId(null);
-    setEditingKnowledgeContent("");
+      setKnowledge((current) => ({
+        ...current,
 
-    showToast("Document saved");
+        documents: current.documents.map(
+          (document) =>
+            document.id === documentId
+              ? {
+                ...document,
+                content:
+                  updatedDocument.content,
+              }
+              : document
+        ),
+      }));
+
+      setEditingKnowledgeContentId(null);
+      setEditingKnowledgeContent("");
+
+      showToast("Document saved");
+
+    } catch (error) {
+
+      console.error(
+        "Failed to save knowledge document:",
+        error
+      );
+
+      showToast(
+        error.message ||
+        "Failed to save document"
+      );
+
+    }
 
   };
 
@@ -1421,6 +1482,44 @@ function App() {
     };
 
     loadMemories();
+
+  }, []);
+
+  useEffect(() => {
+
+    const loadKnowledge = async () => {
+
+      try {
+
+        const documents =
+          await getKnowledge();
+
+        setKnowledge({
+          enabled: true,
+          documents: documents.map(
+            (document) => ({
+              id: document._id,
+              _id: document._id,
+              name: document.name,
+              content: document.content,
+              type: document.type,
+              size: document.size,
+            })
+          ),
+        });
+
+      } catch (error) {
+
+        console.error(
+          "Failed to load knowledge:",
+          error
+        );
+
+      }
+
+    };
+
+    loadKnowledge();
 
   }, []);
 
@@ -2140,30 +2239,131 @@ function App() {
                   <button
                     type="button"
                     className="memoryAddButton"
-                    onClick={() => {
+                    onClick={async () => {
 
                       const name = knowledgeInput.trim();
 
                       if (!name) return;
 
-                      setKnowledge((current) => ({
-                        ...current,
-                        documents: [
-                          ...current.documents,
-                          {
-                            id: Date.now(),
-                            name,
-                            content: `Sample content from ${name}.`,
-                          },
-                        ],
-                      }));
+                      try {
 
-                      setKnowledgeInput("");
+                        const createdDocument =
+                          await createKnowledge(
+                            name,
+                            `Sample content from ${name}.`
+                          );
+
+                        setKnowledge((current) => ({
+                          ...current,
+
+                          documents: [
+                            ...current.documents,
+                            {
+                              id: createdDocument._id,
+                              _id: createdDocument._id,
+                              name: createdDocument.name,
+                              content: createdDocument.content,
+                              type: createdDocument.type,
+                              size: createdDocument.size,
+                            },
+                          ],
+                        }));
+
+                        setKnowledgeInput("");
+
+                        showToast("Document added");
+
+                      } catch (error) {
+
+                        console.error(
+                          "Failed to create knowledge document:",
+                          error
+                        );
+
+                        showToast(
+                          error.message ||
+                          "Failed to add document"
+                        );
+
+                      }
 
                     }}
                   >
                     Add
                   </button>
+
+                  <button
+                    type="button"
+                    className="memoryAddButton"
+                    onClick={() => {
+                      knowledgeFileInputRef.current?.click();
+                    }}
+                  >
+                    Upload
+                  </button>
+
+                  <input
+                    ref={knowledgeFileInputRef}
+                    type="file"
+                    accept=".txt,.md,.pdf,.doc,.docx"
+                    style={{ display: "none" }}
+                    onChange={async (e) => {
+
+                      const file = e.target.files?.[0];
+
+                      if (!file) return;
+
+                      try {
+
+                        const uploadedDocument =
+                          await uploadKnowledge(file);
+
+                        const savedDocument =
+                          await createKnowledge(
+                            uploadedDocument.name,
+                            uploadedDocument.content,
+                            uploadedDocument.type,
+                            uploadedDocument.size
+                          );
+
+                        setKnowledge((current) => ({
+                          ...current,
+
+                          documents: [
+                            ...current.documents,
+                            {
+                              id: savedDocument._id,
+                              _id: savedDocument._id,
+                              name: savedDocument.name,
+                              content: savedDocument.content,
+                              type: savedDocument.type,
+                              size: savedDocument.size,
+                            },
+                          ],
+                        }));
+
+                        showToast("Document uploaded");
+
+                      } catch (error) {
+
+                        console.error(
+                          "Failed to upload knowledge document:",
+                          error
+                        );
+
+                        showToast(
+                          error.message ||
+                          "Failed to upload document"
+                        );
+
+                      } finally {
+
+                        e.target.value = "";
+
+                      }
+
+                    }}
+                  />
 
                 </div>
 
@@ -2291,14 +2491,38 @@ function App() {
                         <button
                           type="button"
                           className="memoryRemove"
-                          onClick={() => {
+                          onClick={async () => {
 
-                            setKnowledge((current) => ({
-                              ...current,
-                              documents: current.documents.filter(
-                                (item) => item.id !== document.id
-                              ),
-                            }));
+                            try {
+
+                              await deleteKnowledge(
+                                document._id || document.id
+                              );
+
+                              setKnowledge((current) => ({
+                                ...current,
+
+                                documents: current.documents.filter(
+                                  (item) =>
+                                    item.id !== document.id
+                                ),
+                              }));
+
+                              showToast("Document deleted");
+
+                            } catch (error) {
+
+                              console.error(
+                                "Failed to delete knowledge document:",
+                                error
+                              );
+
+                              showToast(
+                                error.message ||
+                                "Failed to delete document"
+                              );
+
+                            }
 
                           }}
                         >
