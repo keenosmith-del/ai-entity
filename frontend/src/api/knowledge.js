@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:5050/api/knowledge";
+const API_URL = `${import.meta.env.VITE_API_URL}/knowledge`;
 
 
 export const getKnowledge = async () => {
