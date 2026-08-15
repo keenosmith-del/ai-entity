@@ -399,6 +399,8 @@
     z-index: 500;
 
     overflow: hidden;
+
+    isolation: isolate;
 }
 
 .sidePanel.open {
@@ -2367,6 +2369,8 @@
 
     box-shadow:
         0 20px 60px rgba(0, 0, 0, 0.125);
+
+    isolation: isolate;
 }
 
 .deleteModalTitle {
