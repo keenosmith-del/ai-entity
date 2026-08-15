@@ -1,4 +1,16 @@
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+import {
+  Prism as SyntaxHighlighter
+} from "react-syntax-highlighter";
+
+import {
+  oneDark
+} from "react-syntax-highlighter/dist/esm/styles/prism";
+
+import rehypeRaw from "rehype-raw";
 
 import {
   ArrowRight,
@@ -89,12 +101,59 @@ function App() {
     customInstructions: "",
   };
 
-  const [personality, setPersonality] = useState(
-    defaultPersonality
-  );
+  const [personality, setPersonality] = useState(() => {
+
+    const savedPersonality =
+      localStorage.getItem("aiEntityPersonality");
+
+    if (!savedPersonality) {
+      return defaultPersonality;
+    }
+
+    try {
+
+      return {
+        ...defaultPersonality,
+        ...JSON.parse(savedPersonality),
+      };
+
+    } catch (error) {
+
+      console.error(
+        "Failed to load personality settings:",
+        error
+      );
+
+      return defaultPersonality;
+
+    }
+
+  });
 
   const [personalityDraft, setPersonalityDraft] = useState(
-    defaultPersonality
+    () => {
+
+      const savedPersonality =
+        localStorage.getItem("aiEntityPersonality");
+
+      if (!savedPersonality) {
+        return defaultPersonality;
+      }
+
+      try {
+
+        return {
+          ...defaultPersonality,
+          ...JSON.parse(savedPersonality),
+        };
+
+      } catch (error) {
+
+        return defaultPersonality;
+
+      }
+
+    }
   );
 
   // memory states 
@@ -120,6 +179,8 @@ function App() {
 
   // delete conversation
   const [conversationToDelete, setConversationToDelete] = useState(null);
+
+  const [conversationSearch, setConversationSearch] = useState("");
 
   // edit knowledge docs
   const [editingKnowledgeId, setEditingKnowledgeId] = useState(null);
@@ -570,8 +631,9 @@ function App() {
     const patterns = [
       // Identity
       {
-        regex: /\bmy name is\s+(.+?)(?:[.!?]|$)/i,
-        format: (match) => `User's name is ${match[1].trim()}.`,
+        regex: /^my name is (.+?)(?=\s+and\s+i\s+|\s*$)/gi,
+        format: (match) =>
+          `User's name is ${match[1].trim()}.`,
       },
       {
         regex: /\bcall me\s+(.+?)(?:[.!?]|$)/i,
@@ -938,14 +1000,21 @@ function App() {
   // set and reset personality 
   const savePersonality = () => {
 
-    setPersonality({
+    const updatedPersonality = {
       ...personalityDraft,
-    });
+    };
+
+    setPersonality(updatedPersonality);
+
+    localStorage.setItem(
+      "aiEntityPersonality",
+      JSON.stringify(updatedPersonality)
+    );
 
     setConversation((current) => ({
       ...current,
       personality: {
-        ...personalityDraft,
+        ...updatedPersonality,
       },
       updatedAt: Date.now(),
     }));
@@ -956,9 +1025,26 @@ function App() {
 
   const resetPersonality = () => {
 
-    setPersonalityDraft({
+    const resetPersonality = {
       ...defaultPersonality,
-    });
+    };
+
+    setPersonalityDraft(resetPersonality);
+
+    setPersonality(resetPersonality);
+
+    localStorage.setItem(
+      "aiEntityPersonality",
+      JSON.stringify(resetPersonality)
+    );
+
+    setConversation((current) => ({
+      ...current,
+      personality: {
+        ...resetPersonality,
+      },
+      updatedAt: Date.now(),
+    }));
 
     showToast("Personality reset");
 
@@ -1027,6 +1113,34 @@ function App() {
     setIsStreaming(false);
 
   };
+
+  const filteredConversations =
+    conversationHistory.filter((item) => {
+
+      const search =
+        conversationSearch
+          .trim()
+          .toLowerCase();
+
+      if (!search) {
+        return true;
+      }
+
+      const titleMatch =
+        item.title
+          ?.toLowerCase()
+          .includes(search);
+
+      const messageMatch =
+        item.messages?.some((message) =>
+          message.content
+            ?.toLowerCase()
+            .includes(search)
+        );
+
+      return titleMatch || messageMatch;
+
+    });
 
   // handle submit onclick (arrow) send
   const handleSubmit = async (e) => {
@@ -3291,19 +3405,45 @@ function App() {
               Conversations
             </div>
 
+            {conversationHistory.length > 0 && (
+
+              <div className="conversationSearch">
+
+                <input
+                  type="text"
+                  value={conversationSearch}
+                  onChange={(e) =>
+                    setConversationSearch(e.target.value)
+                  }
+                  placeholder="Search conversations..."
+                />
+
+              </div>
+
+            )}
+
             {conversationHistory.length === 0 ? (
 
               <div className="historyEmpty">
                 No conversations yet
               </div>
 
+            ) : filteredConversations.length === 0 ? (
+
+              <div className="historyEmpty">
+                No conversations found
+              </div>
+
             ) : (
 
-              conversationHistory.map((item) => (
+              filteredConversations.map((item) => (
 
                 <div
                   key={item.id}
-                  className={`historyItem ${item.id === conversation.id ? "active" : ""}`}
+                  className={`historyItem ${item.id === conversation.id
+                    ? "active"
+                    : ""
+                    }`}
                 >
 
                   {editingConversationId === item.id ? (
@@ -3586,7 +3726,63 @@ function App() {
 
                   ) : (
 
-                    message.content
+                    message.role === "assistant" ? (
+
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeRaw]}
+                        components={{
+                          code({
+                            inline,
+                            className,
+                            children,
+                            ...props
+                          }) {
+
+                            const match =
+                              /language-(\w+)/.exec(
+                                className || ""
+                              );
+
+                            return !inline && match ? (
+
+                              <div className="codeBlock">
+
+                                <SyntaxHighlighter
+                                  style={oneDark}
+                                  language={match[1]}
+                                  PreTag="div"
+                                >
+                                  {String(children).replace(
+                                    /\n$/,
+                                    ""
+                                  )}
+                                </SyntaxHighlighter>
+
+                              </div>
+
+                            ) : (
+
+                              <code
+                                className="inlineCode"
+                                {...props}
+                              >
+                                {children}
+                              </code>
+
+                            );
+
+                          },
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
+
+                    ) : (
+
+                      message.content
+
+                    )
 
                   )}
 
@@ -3692,7 +3888,63 @@ function App() {
 
                   ) : (
 
-                    message.content
+                    message.role === "assistant" ? (
+
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeRaw]}
+                        components={{
+                          code({
+                            inline,
+                            className,
+                            children,
+                            ...props
+                          }) {
+
+                            const match =
+                              /language-(\w+)/.exec(
+                                className || ""
+                              );
+
+                            return !inline && match ? (
+
+                              <div className="codeBlock">
+
+                                <SyntaxHighlighter
+                                  style={oneDark}
+                                  language={match[1]}
+                                  PreTag="div"
+                                >
+                                  {String(children).replace(
+                                    /\n$/,
+                                    ""
+                                  )}
+                                </SyntaxHighlighter>
+
+                              </div>
+
+                            ) : (
+
+                              <code
+                                className="inlineCode"
+                                {...props}
+                              >
+                                {children}
+                              </code>
+
+                            );
+
+                          },
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
+
+                    ) : (
+
+                      message.content
+
+                    )
 
                   )}
 

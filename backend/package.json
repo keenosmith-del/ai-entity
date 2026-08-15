@@ -21,6 +21,7 @@
     "mongoose": "^9.9.2",
     "multer": "^2.2.0",
     "openai": "^7.4.0",
-    "pdf-parse": "^2.4.5"
+    "pdf-parse": "^2.4.5",
+    "rehype-raw": "^7.0.0"
   }
 }
